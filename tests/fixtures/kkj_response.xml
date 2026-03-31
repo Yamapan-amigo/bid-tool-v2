@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Result>
+  <SearchResults>
+    <SearchResult>
+      <ProjectName>令和7年度 広報誌印刷業務</ProjectName>
+      <OrganizationName>東京都総務局</OrganizationName>
+      <PrefectureName>東京都</PrefectureName>
+      <CftIssueDate>2026-03-15</CftIssueDate>
+      <PeriodEndTime>2026-04-30</PeriodEndTime>
+      <Category>1</Category>
+      <ProcedureType>1</ProcedureType>
+      <ExternalDocumentURI>https://example.com/bid/001</ExternalDocumentURI>
+    </SearchResult>
+    <SearchResult>
+      <ProjectName>パンフレット製本委託</ProjectName>
+      <OrganizationName>埼玉県教育委員会</OrganizationName>
+      <PrefectureName>埼玉県</PrefectureName>
+      <CftIssueDate>2026-03-20</CftIssueDate>
+      <PeriodEndTime>2026-04-15</PeriodEndTime>
+      <Category>3</Category>
+      <ProcedureType>1</ProcedureType>
+      <ExternalDocumentURI>https://example.com/bid/002</ExternalDocumentURI>
+    </SearchResult>
+    <SearchResult>
+      <ProjectName>道路改修工事に係る案内看板印刷</ProjectName>
+      <OrganizationName>国土交通省</OrganizationName>
+      <PrefectureName></PrefectureName>
+      <CftIssueDate>2026-03-10</CftIssueDate>
+      <PeriodEndTime>2026-04-10</PeriodEndTime>
+      <Category>1</Category>
+      <ProcedureType>2</ProcedureType>
+      <ExternalDocumentURI>https://example.com/bid/003</ExternalDocumentURI>
+    </SearchResult>
+    <SearchResult>
+      <ProjectName>北海道庁舎清掃業務</ProjectName>
+      <OrganizationName>北海道庁</OrganizationName>
+      <PrefectureName>北海道</PrefectureName>
+      <CftIssueDate>2026-03-01</CftIssueDate>
+      <PeriodEndTime>2026-04-01</PeriodEndTime>
+      <Category>3</Category>
+      <ProcedureType>1</ProcedureType>
+      <ExternalDocumentURI>https://example.com/bid/004</ExternalDocumentURI>
+    </SearchResult>
+    <SearchResult>
+      <ProjectName>封筒印刷（既に締切済み）</ProjectName>
+      <OrganizationName>千葉県庁</OrganizationName>
+      <PrefectureName>千葉県</PrefectureName>
+      <CftIssueDate>2026-01-01</CftIssueDate>
+      <PeriodEndTime>2026-02-01</PeriodEndTime>
+      <Category>1</Category>
+      <ProcedureType>1</ProcedureType>
+      <ExternalDocumentURI>https://example.com/bid/005</ExternalDocumentURI>
+    </SearchResult>
+  </SearchResults>
+</Result>
