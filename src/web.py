@@ -167,13 +167,7 @@ def _render_html(
     for p in projects:
         desc = _format_description(p.description) if p.description else ""
 
-        # リンク: 実URLがあればそれを使い、なければGoogle検索URLを生成
         link_url = p.detail_url
-        link_label = "元サイトで公告を見る"
-        if not link_url:
-            q = f"{p.title} {p.organization} 入札"
-            link_url = f"https://www.google.com/search?q={html.escape(q)}"
-            link_label = "この案件をGoogleで検索する"
 
         details_data.append(
             {
@@ -183,7 +177,7 @@ def _render_html(
                 "publish_date": p.publish_date,
                 "deadline": p.deadline,
                 "detail_url": link_url,
-                "link_label": link_label,
+                "spec_url": p.spec_url,
                 "source": p.source,
                 "score": p.score,
                 "summary": _extract_summary(p.description, p.title),
@@ -449,6 +443,9 @@ def _render_html(
         <a class="external-link" id="modal-link" href="#" target="_blank">
           元サイトで公告を見る &rarr;
         </a>
+        <a class="external-link" id="modal-spec-link" href="#" target="_blank" style="display:none;background:#2e7d32;margin-left:8px">
+          仕様書を見る &rarr;
+        </a>
       </div>
     </div>
   </div>
@@ -513,10 +510,16 @@ function showDetail(idx) {{
   }}
 
   const linkEl = document.getElementById('modal-link');
-  const safeUrl = d.detail_url && (d.detail_url.startsWith('https://') || d.detail_url.startsWith('http://')) ? d.detail_url : '#';
-  linkEl.href = safeUrl;
-  linkEl.textContent = (d.link_label || '元サイトで公告を見る') + ' →';
-  linkEl.style.display = safeUrl !== '#' ? 'inline-block' : 'none';
+  const safeUrl = d.detail_url && (d.detail_url.startsWith('https://') || d.detail_url.startsWith('http://')) ? d.detail_url : '';
+  linkEl.href = safeUrl || '#';
+  linkEl.textContent = '元サイトで公告を見る →';
+  linkEl.style.display = safeUrl ? 'inline-block' : 'none';
+
+  const specEl = document.getElementById('modal-spec-link');
+  const safeSpec = d.spec_url && (d.spec_url.startsWith('https://') || d.spec_url.startsWith('http://')) ? d.spec_url : '';
+  specEl.href = safeSpec || '#';
+  specEl.textContent = '仕様書を見る →';
+  specEl.style.display = safeSpec ? 'inline-block' : 'none';
 
   document.getElementById('overlay').classList.add('active');
 }}

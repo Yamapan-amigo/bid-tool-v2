@@ -145,6 +145,9 @@ def _parse_project(item: ET.Element) -> BidProject | None:
                 deadline = val[:10]
                 break
 
+    # 仕様書URLを添付ファイルから抽出
+    spec_url = _extract_spec_url(item)
+
     # 発注元: OrganizationName を優先、なければ PrefectureName
     organization = org if org else prefecture
 
@@ -158,6 +161,7 @@ def _parse_project(item: ET.Element) -> BidProject | None:
         publish_date=publish_date,
         deadline=deadline,
         detail_url=detail_url,
+        spec_url=spec_url,
         source=KKJ_SOURCE_NAME,
         description=description,
         eligibility_overall=eligibility.overall,
@@ -279,6 +283,25 @@ def _text(element: ET.Element, tag: str) -> str | None:
             return child.text.strip()
 
     return None
+
+
+def _extract_spec_url(item: ET.Element) -> str:
+    """添付ファイルから仕様書URLを抽出する"""
+    for attachment in item.iter():
+        tag = attachment.tag.split("}")[-1] if "}" in attachment.tag else attachment.tag
+        if tag == "Attachment":
+            name = ""
+            uri = ""
+            for child in attachment:
+                child_tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+                if child_tag == "Name" and child.text:
+                    name = child.text.strip()
+                elif child_tag == "Uri" and child.text:
+                    uri = child.text.strip()
+            if uri and uri.startswith(("http://", "https://")):
+                if "仕様" in name or "仕様書" in name:
+                    return uri
+    return ""
 
 
 def _find_all_items(root: ET.Element) -> list[ET.Element]:
