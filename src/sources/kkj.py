@@ -126,9 +126,6 @@ def _parse_project(item: ET.Element) -> BidProject | None:
         deadline = deadline[:10]
 
     detail_url = _text(item, "ExternalDocumentURI") or ""
-    # 汎用検索ページURLは除外（案件固有の情報がない）
-    if "pps-web-biz/UAA01" in detail_url:
-        detail_url = ""
     # URL検証: http/httpsのみ許可（javascript:等のインジェクション防止）
     if detail_url and not detail_url.startswith(("http://", "https://")):
         detail_url = ""
