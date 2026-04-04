@@ -11,7 +11,6 @@ from src.sources.pportal import (
     _fetch_single_year,
     _is_printing_related,
     _parse_row,
-    fetch_award_results,
 )
 
 
