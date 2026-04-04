@@ -21,6 +21,7 @@ class BidProject:
     detail_url: str = ""
     source: str = ""  # データソース名（官公需 / e-Tokyo）
     description: str = ""  # 案件説明文（公告全文）
+    spec_url: str = ""  # 仕様書URL
     eligibility_overall: str = "○"  # 参加可否 ◎/○/×
     eligibility_grade: str = ""  # 等級要件テキスト
     eligibility_region: str = ""  # 地域要件テキスト
