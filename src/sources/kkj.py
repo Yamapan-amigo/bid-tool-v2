@@ -142,8 +142,10 @@ def _parse_project(item: ET.Element) -> BidProject | None:
                 deadline = val[:10]
                 break
 
-    # 仕様書URLを添付ファイルから抽出
+    # 仕様書URLを添付ファイルから抽出、なければテキストからフォールバック
     spec_url = _extract_spec_url(item)
+    if not spec_url:
+        spec_url = _extract_spec_url_from_text(description)
 
     # 発注元: OrganizationName を優先、なければ PrefectureName
     organization = org if org else prefecture
@@ -299,6 +301,47 @@ def _extract_spec_url(item: ET.Element) -> str:
                 if "仕様" in name or "仕様書" in name:
                     return uri
     return ""
+
+
+# テキスト内URL抽出用
+_URL_PATTERN = re.compile(r"https?://[a-zA-Z0-9\-._~:/?#\[\]@!$&'*+,;=%]+")
+_PORTAL_GENERIC = "pps-web-biz/UAA01"
+_SPEC_KEYWORDS = ["仕様書", "仕様", "入札説明書", "説明書"]
+
+
+def _extract_spec_url_from_text(text: str) -> str:
+    """公告テキストからURLを抽出し、仕様書らしきものを返す"""
+    if not text:
+        return ""
+
+    urls = _URL_PATTERN.findall(text)
+    # 調達ポータル汎用URLを除外
+    urls = [u for u in urls if _PORTAL_GENERIC not in u]
+    # http/httpsのみ
+    urls = [u for u in urls if u.startswith(("http://", "https://"))]
+
+    if not urls:
+        return ""
+
+    # 仕様書キーワードの直後にあるURLを優先
+    for kw in _SPEC_KEYWORDS:
+        idx = text.find(kw)
+        if idx < 0:
+            continue
+        # キーワードの後ろ300文字以内で最初に出てくるURLを返す
+        after = text[idx : idx + 300]
+        after_urls = _URL_PATTERN.findall(after)
+        after_urls = [u for u in after_urls if _PORTAL_GENERIC not in u]
+        if after_urls:
+            return after_urls[0]
+
+    # フォールバック: PDFっぽいURLを優先
+    pdf_urls = [u for u in urls if u.endswith(".pdf") or ".pdf" in u]
+    if pdf_urls:
+        return pdf_urls[0]
+
+    # 最後の手段: 最初のURL
+    return urls[0]
 
 
 def _find_all_items(root: ET.Element) -> list[ET.Element]:
