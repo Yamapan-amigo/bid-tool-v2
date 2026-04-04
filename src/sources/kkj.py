@@ -129,6 +129,9 @@ def _parse_project(item: ET.Element) -> BidProject | None:
     # 汎用検索ページURLは除外（案件固有の情報がない）
     if "pps-web-biz/UAA01" in detail_url:
         detail_url = ""
+    # URL検証: http/httpsのみ許可（javascript:等のインジェクション防止）
+    if detail_url and not detail_url.startswith(("http://", "https://")):
+        detail_url = ""
 
     # 締切日がXMLにない場合、descriptionから抽出を試みる
     if not deadline and description:

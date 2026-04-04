@@ -33,6 +33,8 @@ jobs:
         run: pip install .
 
       - name: Generate HTML
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python -m src.web --generate docs/index.html
 
       - name: Upload Pages artifact
