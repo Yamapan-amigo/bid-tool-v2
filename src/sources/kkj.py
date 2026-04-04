@@ -27,6 +27,7 @@ from src.config import (
     SEARCH_KEYWORDS,
     TARGET_PREFECTURES,
 )
+from src.core.extractor import extract_eligibility
 from src.core.models import BidProject
 
 logger = logging.getLogger(__name__)
@@ -133,6 +134,9 @@ def _parse_project(item: ET.Element) -> BidProject | None:
     # 発注元: OrganizationName を優先、なければ PrefectureName
     organization = org if org else prefecture
 
+    # 応募条件を公告テキストから抽出
+    eligibility = extract_eligibility(description, organization.strip())
+
     return BidProject(
         title=title.strip(),
         organization=organization.strip(),
@@ -142,6 +146,11 @@ def _parse_project(item: ET.Element) -> BidProject | None:
         detail_url=detail_url,
         source=KKJ_SOURCE_NAME,
         description=description,
+        eligibility_overall=eligibility.overall,
+        eligibility_grade=eligibility.grade_text,
+        eligibility_region=eligibility.region_text,
+        eligibility_method=eligibility.submission_method,
+        eligibility_contact=eligibility.contact,
     )
 
 

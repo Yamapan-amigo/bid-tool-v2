@@ -122,12 +122,17 @@ def _render_html(
 
         deadline_display = p.deadline or "要確認"
 
+        elig_class = "elig-ok" if p.eligibility_overall == "◎" else "elig-check" if p.eligibility_overall == "○" else "elig-ng"
+        tr_class = ' class="row-ng"' if p.eligibility_overall == "×" else ""
+
         rows_html += f"""
-        <tr onclick="showDetail({i - 1})" style="cursor:pointer"
+        <tr onclick="showDetail({i - 1})" style="cursor:pointer"{tr_class}
             data-bid-type="{html.escape(p.bid_type)}"
             data-score="{p.score}"
+            data-elig="{p.eligibility_overall}"
             data-org="{html.escape(p.organization)}">
           <td class="row-num">{i}</td>
+          <td class="{elig_class}">{p.eligibility_overall}</td>
           <td class="title">{html.escape(p.title)}</td>
           <td>{html.escape(p.organization)}</td>
           <td>{html.escape(p.bid_type)}</td>
@@ -183,6 +188,11 @@ def _render_html(
                     }
                     for t, pr, w in p.similar_awards
                 ],
+                "elig_overall": p.eligibility_overall,
+                "elig_grade": p.eligibility_grade,
+                "elig_region": p.eligibility_region,
+                "elig_method": p.eligibility_method,
+                "elig_contact": p.eligibility_contact,
             }
         )
     details_json = json.dumps(details_data, ensure_ascii=False)
@@ -214,6 +224,10 @@ def _render_html(
   .filter-group input {{ width: 200px; }}
   .filter-reset {{ padding: 6px 14px; border: 1px solid #ddd; border-radius: 6px; background: #fff; font-size: 13px; cursor: pointer; align-self: flex-end; }}
   .filter-reset:hover {{ background: #f0f0f0; }}
+  .elig-ok {{ text-align: center; font-weight: 700; color: #2e7d32; font-size: 16px; }}
+  .elig-check {{ text-align: center; font-weight: 600; color: #f57f17; font-size: 16px; }}
+  .elig-ng {{ text-align: center; color: #bbb; font-size: 16px; }}
+  .row-ng {{ opacity: 0.5; }}
   .hint {{ font-size: 12px; color: #888; margin-bottom: 12px; }}
 
   table {{ width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
@@ -283,6 +297,14 @@ def _render_html(
   <div class="container">
     <div class="filters">
       <div class="filter-group">
+        <label>参加可否</label>
+        <select id="filter-elig" onchange="applyFilters()">
+          <option value="">すべて</option>
+          <option value="◎">◎ 参加可能のみ</option>
+          <option value="◎○">◎○ 参加不可を除外</option>
+        </select>
+      </div>
+      <div class="filter-group">
         <label>入札方式</label>
         <select id="filter-bid-type" onchange="applyFilters()">
           <option value="">すべて</option>
@@ -303,11 +325,12 @@ def _render_html(
       </div>
       <button class="filter-reset" onclick="resetFilters()">リセット</button>
     </div>
-    <p class="hint">行をクリックすると詳細を表示 ｜ &#9733;&#9733;&#9733; 印刷・製本+一般競争入札 ／ &#9733;&#9733; 条件が一部合致 ／ &#9733; 参考程度</p>
+    <p class="hint">行をクリックすると詳細を表示 ｜ ◎ 参加可能 ／ ○ 要確認 ／ × 参加不可（等級・地域NG）</p>
     <table>
       <thead>
         <tr>
           <th>#</th>
+          <th>可否</th>
           <th>案件名</th>
           <th>発注元</th>
           <th>入札方式</th>
@@ -365,6 +388,29 @@ def _render_html(
           </div>
         </div>
 
+        <div class="desc-section">
+          <h3>応募条件</h3>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <div class="label">参加可否</div>
+              <div class="value" id="modal-elig-overall" style="font-size:20px"></div>
+            </div>
+            <div class="detail-item">
+              <div class="label">等級要件</div>
+              <div class="value" id="modal-elig-grade"></div>
+            </div>
+            <div class="detail-item">
+              <div class="label">地域要件</div>
+              <div class="value" id="modal-elig-region"></div>
+            </div>
+            <div class="detail-item">
+              <div class="label">提出方法</div>
+              <div class="value" id="modal-elig-method"></div>
+            </div>
+          </div>
+          <div id="modal-elig-contact" style="font-size:12px;color:#666;margin-top:8px"></div>
+        </div>
+
         <div class="desc-section" id="similar-section" style="display:none">
           <h3>参考: 類似案件の過去落札実績</h3>
           <table style="width:100%;font-size:13px;border-collapse:collapse">
@@ -408,6 +454,15 @@ function showDetail(idx) {{
   document.getElementById('modal-source').textContent = d.source;
   const stars = d.score >= 4.5 ? '\u2733\u2733\u2733' : d.score >= 3.5 ? '\u2733\u2733' : d.score >= 2.5 ? '\u2733' : '-';
   document.getElementById('modal-score').textContent = stars;
+
+  // 応募条件
+  const eligEl = document.getElementById('modal-elig-overall');
+  eligEl.textContent = d.elig_overall || '○';
+  eligEl.style.color = d.elig_overall === '◎' ? '#2e7d32' : d.elig_overall === '×' ? '#d32f2f' : '#f57f17';
+  document.getElementById('modal-elig-grade').textContent = d.elig_grade || '不明';
+  document.getElementById('modal-elig-region').textContent = d.elig_region || '不明';
+  document.getElementById('modal-elig-method').textContent = d.elig_method || '不明';
+  document.getElementById('modal-elig-contact').textContent = d.elig_contact || '';
 
   const descEl = document.getElementById('modal-desc');
   if (d.description) {{
@@ -456,6 +511,7 @@ document.addEventListener('keydown', function(e) {{
 }});
 
 function applyFilters() {{
+  const eligFilter = document.getElementById('filter-elig').value;
   const bidType = document.getElementById('filter-bid-type').value;
   const minScore = parseFloat(document.getElementById('filter-score').value) || 0;
   const keyword = document.getElementById('filter-keyword').value.toLowerCase();
@@ -463,10 +519,12 @@ function applyFilters() {{
   let visible = 0;
   let num = 1;
   rows.forEach(row => {{
+    const rElig = row.getAttribute('data-elig') || '';
     const rBid = row.getAttribute('data-bid-type') || '';
     const rScore = parseFloat(row.getAttribute('data-score')) || 0;
     const rText = row.textContent.toLowerCase();
-    const show = (!bidType || rBid === bidType) && rScore >= minScore && (!keyword || rText.includes(keyword));
+    const eligOk = !eligFilter || (eligFilter === '◎' ? rElig === '◎' : rElig !== '×');
+    const show = eligOk && (!bidType || rBid === bidType) && rScore >= minScore && (!keyword || rText.includes(keyword));
     row.style.display = show ? '' : 'none';
     if (show) {{
       row.querySelector('.row-num').textContent = num++;
@@ -477,6 +535,7 @@ function applyFilters() {{
 }}
 
 function resetFilters() {{
+  document.getElementById('filter-elig').value = '';
   document.getElementById('filter-bid-type').value = '';
   document.getElementById('filter-score').value = '';
   document.getElementById('filter-keyword').value = '';

@@ -21,6 +21,11 @@ class BidProject:
     detail_url: str = ""
     source: str = ""  # データソース名（官公需 / e-Tokyo）
     description: str = ""  # 案件説明文（公告全文）
+    eligibility_overall: str = "○"  # 参加可否 ◎/○/×
+    eligibility_grade: str = ""  # 等級要件テキスト
+    eligibility_region: str = ""  # 地域要件テキスト
+    eligibility_method: str = ""  # 提出方法
+    eligibility_contact: str = ""  # 連絡先
     score: float = 3.0
     past_award_price: int | None = None  # 過去落札金額（円）
     past_award_winner: str = ""  # 過去落札者名
