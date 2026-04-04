@@ -32,6 +32,47 @@ _DATE_HIGHLIGHT = re.compile(r"(令和\s*\d+\s*年\s*\d+\s*月\s*\d+\s*日)")
 _PRICE_HIGHLIGHT = re.compile(r"([\d,]+\s*円)")
 
 
+def _extract_summary(text: str, title: str) -> str:
+    """公告テキストから概要を抽出する（3-5行の要約）"""
+    if not text:
+        return ""
+
+    items: list[str] = []
+
+    # 品名・件名
+    items.append(f"<b>件名:</b> {html.escape(title)}")
+
+    # 数量
+    m = re.search(r"(?:数量|予定数量)[）)\s]*\s*(.{5,60}?)(?:\(|（|\s*$)", text)
+    if m:
+        items.append(f"<b>数量:</b> {html.escape(m.group(1).strip())}")
+
+    # 納入場所
+    m = re.search(r"(?:納入場所|履行場所|納入先|委託場所)[）)\s]*\s*(.{3,60}?)(?:\(|（|\s*$)", text)
+    if m:
+        items.append(f"<b>場所:</b> {html.escape(m.group(1).strip())}")
+
+    # 履行期間/納入期限
+    m = re.search(
+        r"(?:履行期間|納入期限|委託期間|契約期間)[）)\s]*\s*(.{5,80}?)(?:\(|（|[。\n])",
+        text,
+    )
+    if m:
+        items.append(f"<b>期間:</b> {html.escape(m.group(1).strip())}")
+
+    # 契約方法
+    m = re.search(r"(?:契約方法|契約の方法)[）)\s]*\s*(.{3,30}?)(?:\(|（|\s*$)", text)
+    if m:
+        items.append(f"<b>契約:</b> {html.escape(m.group(1).strip())}")
+
+    if len(items) <= 1:
+        # 抽出できなかった場合、テキスト先頭200文字を表示
+        snippet = text[:200].strip()
+        items.append(html.escape(snippet) + "...")
+
+    return "<br>".join(items)
+
+
 def _format_description(text: str) -> str:
     """公告テキストを読みやすいHTMLに整形する"""
     if not text:
@@ -175,6 +216,7 @@ def _render_html(
                 "link_label": link_label,
                 "source": p.source,
                 "score": p.score,
+                "summary": _extract_summary(p.description, p.title),
                 "description": desc,
                 "past_price": (
                     f"{p.past_award_price:,}円" if p.past_award_price else ""
@@ -424,8 +466,12 @@ def _render_html(
         </div>
 
         <div class="desc-section">
-          <h3>公告内容</h3>
-          <div class="desc-text" id="modal-desc"></div>
+          <h3>概要</h3>
+          <div id="modal-summary" style="font-size:14px;line-height:2;padding:12px 0"></div>
+          <details style="margin-top:12px">
+            <summary style="cursor:pointer;color:#1a73e8;font-size:13px;font-weight:500">公告全文を表示</summary>
+            <div class="desc-text" id="modal-desc" style="margin-top:8px"></div>
+          </details>
         </div>
 
         <a class="external-link" id="modal-link" href="#" target="_blank">
@@ -464,12 +510,16 @@ function showDetail(idx) {{
   document.getElementById('modal-elig-method').textContent = d.elig_method || '不明';
   document.getElementById('modal-elig-contact').textContent = d.elig_contact || '';
 
+  // 概要
+  document.getElementById('modal-summary').innerHTML = d.summary || '概要を抽出できませんでした';
+
+  // 全文（折りたたみ）
   const descEl = document.getElementById('modal-desc');
   if (d.description) {{
     descEl.innerHTML = d.description;
     descEl.classList.remove('no-desc');
   }} else {{
-    descEl.textContent = '公告内容はこのデータソースでは取得できませんでした。元サイトをご確認ください。';
+    descEl.textContent = '公告全文はこのデータソースでは取得できませんでした。';
     descEl.classList.add('no-desc');
   }}
 
