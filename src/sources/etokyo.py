@@ -37,10 +37,12 @@ logger = logging.getLogger(__name__)
 def _create_session() -> requests.Session:
     """リクエストセッションを作成する"""
     session = requests.Session()
-    session.headers.update({
-        "User-Agent": CRAWL.user_agent,
-        "Accept-Language": "ja,en;q=0.9",
-    })
+    session.headers.update(
+        {
+            "User-Agent": CRAWL.user_agent,
+            "Accept-Language": "ja,en;q=0.9",
+        }
+    )
     return session
 
 

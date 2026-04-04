@@ -92,7 +92,7 @@ def _collect_data() -> tuple[list[BidProject], int, int, int]:
     scored = score_projects(matched)
     scored.sort(key=lambda p: p.score, reverse=True)
 
-    return scored, len(kkj), len(awards), matched_count
+    return scored, len(all_projects), len(awards), matched_count
 
 
 def _render_html(
@@ -104,9 +104,6 @@ def _render_html(
     """結果をHTMLに変換する"""
     rows_html = ""
     for i, p in enumerate(projects, 1):
-        price_str = f"&yen;{p.past_award_price:,}" if p.past_award_price else "-"
-        price_class = "has-price" if p.past_award_price else ""
-
         score_class = ""
         score_label = ""
         if p.score >= 4.5:
@@ -122,7 +119,7 @@ def _render_html(
             score_class = "score-low"
             score_label = "-"
 
-        deadline_display = p.deadline or "-"
+        deadline_display = p.deadline or "要確認"
 
         rows_html += f"""
         <tr onclick="showDetail({i - 1})" style="cursor:pointer"
@@ -305,7 +302,7 @@ def _render_html(
       </div>
       <button class="filter-reset" onclick="resetFilters()">リセット</button>
     </div>
-    <p class="hint">行をクリックすると詳細を表示 ｜ &#9733;&#9733;&#9733; 印刷コア+一般競争入札 ／ &#9733;&#9733; 印刷関連 ／ &#9733; その他</p>
+    <p class="hint">行をクリックすると詳細を表示 ｜ &#9733;&#9733;&#9733; 印刷・製本+一般競争入札 ／ &#9733;&#9733; 条件が一部合致 ／ &#9733; 参考程度</p>
     <table>
       <thead>
         <tr>
@@ -421,14 +418,15 @@ function showDetail(idx) {{
   }}
 
   // 類似案件表示
+  const esc = t => t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const simSection = document.getElementById('similar-section');
   const simBody = document.getElementById('similar-body');
   if (d.similar_awards && d.similar_awards.length > 0) {{
     simBody.innerHTML = d.similar_awards.map(s =>
       '<tr>' +
-      '<td style="padding:6px 8px;border-bottom:1px solid #eee">' + s.title.substring(0, 50) + '</td>' +
-      '<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:#d32f2f;font-weight:600;white-space:nowrap">' + s.price + '</td>' +
-      '<td style="padding:6px 8px;border-bottom:1px solid #eee">' + s.winner.substring(0, 20) + '</td>' +
+      '<td style="padding:6px 8px;border-bottom:1px solid #eee">' + esc(s.title.substring(0, 50)) + '</td>' +
+      '<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:#d32f2f;font-weight:600;white-space:nowrap">' + esc(s.price) + '</td>' +
+      '<td style="padding:6px 8px;border-bottom:1px solid #eee">' + esc(s.winner.substring(0, 20)) + '</td>' +
       '</tr>'
     ).join('');
     simSection.style.display = 'block';

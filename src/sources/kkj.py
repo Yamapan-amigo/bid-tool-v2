@@ -227,26 +227,17 @@ def _reiwa_to_date(reiwa_year: int, month: int, day: int) -> datetime | None:
 
 
 def _extract_deadline_from_text(text: str) -> str:
-    """説明文から締切日を正規表現で抽出する"""
-    # 優先パターンで順番に試す
+    """説明文から締切日を正規表現で抽出する
+
+    明確なキーワード（入札書提出期限、開札日等）に隣接する日付のみ抽出。
+    汎用フォールバック（全日付から最近のもの）は廃止 — 契約期間を誤抽出するため。
+    """
     for pattern in _DEADLINE_PATTERNS:
         m = pattern.search(text)
         if m:
             dt = _reiwa_to_date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
             if dt:
                 return dt.strftime("%Y-%m-%d")
-
-    # フォールバック: 本文中の全日付から最も未来の日付を返す
-    all_dates: list[datetime] = []
-    for m in _DATE_GENERIC.finditer(text):
-        dt = _reiwa_to_date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        if dt and dt > datetime.now():
-            all_dates.append(dt)
-
-    if all_dates:
-        # 最も近い未来の日付を返す
-        all_dates.sort()
-        return all_dates[0].strftime("%Y-%m-%d")
 
     return ""
 
