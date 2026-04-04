@@ -142,14 +142,14 @@ def _render_html(
             data-score="{p.score}"
             data-elig="{p.eligibility_overall}"
             data-org="{html.escape(p.organization)}">
-          <td class="row-num">{i}</td>
-          <td class="{elig_class}">{p.eligibility_overall}</td>
-          <td class="title">{html.escape(p.title)}</td>
-          <td>{html.escape(p.organization)}</td>
-          <td>{html.escape(p.bid_type)}</td>
-          <td>{p.publish_date}</td>
-          <td>{deadline_display}</td>
-          <td class="{score_class}">{score_label}</td>
+          <td class="row-num" data-label="#">{i}</td>
+          <td class="{elig_class}" data-label="可否">{p.eligibility_overall}</td>
+          <td class="title" data-label="案件名">{html.escape(p.title)}</td>
+          <td data-label="発注元">{html.escape(p.organization)}</td>
+          <td data-label="入札方式">{html.escape(p.bid_type)}</td>
+          <td data-label="公告日">{p.publish_date}</td>
+          <td data-label="締切日">{deadline_display}</td>
+          <td class="{score_class}" data-label="おすすめ">{score_label}</td>
         </tr>"""
 
     high_score = sum(1 for p in projects if p.score >= 4.0)
@@ -274,6 +274,90 @@ def _render_html(
   .footer {{ text-align: center; padding: 20px; font-size: 12px; color: #999; }}
   a {{ color: #1a73e8; text-decoration: none; }}
   a:hover {{ text-decoration: underline; }}
+
+  /* === モバイル対応 (スマホ: 768px以下) === */
+  @media (max-width: 768px) {{
+    .header {{ padding: 16px 16px; }}
+    .header h1 {{ font-size: 18px; }}
+    .header p {{ font-size: 11px; }}
+
+    .stats {{ padding: 12px 16px; gap: 8px; }}
+    .stat-card {{ min-width: 0; flex: 1 1 calc(50% - 4px); padding: 10px 12px; }}
+    .stat-card .number {{ font-size: 22px; }}
+    .stat-card .label {{ font-size: 11px; }}
+
+    .container {{ padding: 12px 12px; }}
+    .filters {{ gap: 8px; margin-bottom: 12px; }}
+    .filter-group {{ flex: 1 1 calc(50% - 4px); min-width: 0; }}
+    .filter-group select, .filter-group input {{ width: 100%; font-size: 14px; padding: 8px 10px; }}
+    .filter-reset {{ width: 100%; padding: 10px; font-size: 14px; }}
+    .hint {{ font-size: 11px; }}
+
+    /* テーブルをカード形式に変換 */
+    table, thead, tbody, th, td, tr {{ display: block; }}
+    thead {{ position: absolute; top: -9999px; left: -9999px; }}
+    table {{ box-shadow: none; background: transparent; border-radius: 0; }}
+    tr {{
+      background: #fff;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      padding: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      border-bottom: none;
+    }}
+    tr:hover {{ background: #fff; }}
+    td {{
+      border: none;
+      padding: 4px 0;
+      font-size: 13px;
+      position: relative;
+      padding-left: 78px;
+      min-height: 22px;
+      white-space: normal;
+      word-break: break-word;
+    }}
+    td::before {{
+      content: attr(data-label);
+      position: absolute;
+      left: 0;
+      top: 4px;
+      width: 70px;
+      font-size: 11px;
+      color: #888;
+      font-weight: 600;
+    }}
+    td.row-num {{
+      padding-left: 0;
+      font-weight: 700;
+      color: #1a73e8;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }}
+    td.row-num::before {{ content: "#"; position: static; width: auto; color: #1a73e8; margin-right: 4px; }}
+    td.title {{ max-width: none; font-weight: 600; font-size: 14px; padding: 6px 0; }}
+    td.title::before {{ display: none; }}
+
+    /* モーダル */
+    .overlay.active {{ padding-top: 0; align-items: stretch; }}
+    .modal {{ width: 100%; max-width: 100%; max-height: 100vh; border-radius: 0; }}
+    .modal-header {{ padding: 16px; border-radius: 0; position: sticky; top: 0; z-index: 10; }}
+    .modal-header h2 {{ font-size: 15px; padding-right: 36px; }}
+    .modal-close {{ top: 12px; right: 14px; font-size: 28px; padding: 4px 8px; }}
+    .modal-body {{ padding: 16px; }}
+    .detail-grid {{ grid-template-columns: 1fr; gap: 10px; }}
+    .detail-item .value {{ font-size: 13px; }}
+    .detail-item .value.price {{ font-size: 16px; }}
+    .desc-section h3 {{ font-size: 13px; }}
+    .desc-text {{ font-size: 12px; padding: 12px; max-height: 300px; }}
+    .external-link {{ display: block; text-align: center; margin-top: 12px; margin-left: 0 !important; padding: 12px; font-size: 14px; }}
+  }}
+
+  /* 極小画面 (iPhone SE等: 380px以下) */
+  @media (max-width: 380px) {{
+    .stat-card {{ flex: 1 1 100%; }}
+    .filter-group {{ flex: 1 1 100%; }}
+    .header h1 {{ font-size: 16px; }}
+  }}
 </style>
 </head>
 <body>
