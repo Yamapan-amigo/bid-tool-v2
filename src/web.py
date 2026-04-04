@@ -446,6 +446,9 @@ def _render_html(
         <a class="external-link" id="modal-spec-link" href="#" target="_blank" style="display:none;background:#2e7d32;margin-left:8px">
           仕様書を見る &rarr;
         </a>
+        <p id="modal-spec-note" style="display:none;font-size:12px;color:#888;margin-top:10px">
+          ※ 仕様書は電子入札システムまたは調達ポータルから取得してください
+        </p>
       </div>
     </div>
   </div>
@@ -516,10 +519,12 @@ function showDetail(idx) {{
   linkEl.style.display = safeUrl ? 'inline-block' : 'none';
 
   const specEl = document.getElementById('modal-spec-link');
+  const specNote = document.getElementById('modal-spec-note');
   const safeSpec = d.spec_url && (d.spec_url.startsWith('https://') || d.spec_url.startsWith('http://')) ? d.spec_url : '';
   specEl.href = safeSpec || '#';
   specEl.textContent = '仕様書を見る →';
   specEl.style.display = safeSpec ? 'inline-block' : 'none';
+  specNote.style.display = safeSpec ? 'none' : 'block';
 
   document.getElementById('overlay').classList.add('active');
 }}
