@@ -192,7 +192,7 @@ def _render_html(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>入札情報収集ツール V2</title>
+<title>入札情報収集 for おーしまたん</title>
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{ font-family: -apple-system, 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f5f7fa; color: #333; }}
@@ -257,8 +257,8 @@ def _render_html(
 </head>
 <body>
   <div class="header">
-    <h1>入札情報収集ツール V2</h1>
-    <p>大島さん向け — 印刷関連入札案件一覧（全省庁統一資格 D等級対応）</p>
+    <h1>入札情報収集 for おーしまたん</h1>
+    <p>国の機関 + 関東1都6県 ｜ 印刷・製本関連 ｜ 官公需API + e-Tokyoから自動抽出</p>
   </div>
 
   <div class="stats">
