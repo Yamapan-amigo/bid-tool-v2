@@ -75,7 +75,7 @@ class TestCalculateScore:
         assert score == 3.5  # base(3) + tokyo(0.5)
 
     def test_penalty_keyword(self) -> None:
-        p = BidProject(title="システム開発業務", organization="東京都")
+        p = BidProject(title="情報システム開発業務", organization="東京都")
         score = calculate_score(p)
         assert score == 1.5  # base(3) + tokyo(0.5) - penalty(2)
 

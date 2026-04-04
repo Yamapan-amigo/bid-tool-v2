@@ -142,7 +142,7 @@ def fetch_award_results(years: int = 5) -> list[AwardResult]:
     """調達ポータルから複数年度の印刷関連落札実績を取得する
 
     Args:
-        years: 取得する年数（デフォルト2年分）
+        years: 取得する年数（デフォルト5年分）
 
     Returns:
         印刷関連・金額フィルタ済みの落札実績リスト
