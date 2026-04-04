@@ -213,6 +213,7 @@ def _render_html(
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: https:;">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>入札情報収集 for おーしまたん</title>
 <style>
@@ -512,9 +513,10 @@ function showDetail(idx) {{
   }}
 
   const linkEl = document.getElementById('modal-link');
-  linkEl.href = d.detail_url;
-  linkEl.innerHTML = (d.link_label || '元サイトで公告を見る') + ' &rarr;';
-  linkEl.style.display = 'inline-block';
+  const safeUrl = d.detail_url && (d.detail_url.startsWith('https://') || d.detail_url.startsWith('http://')) ? d.detail_url : '#';
+  linkEl.href = safeUrl;
+  linkEl.textContent = (d.link_label || '元サイトで公告を見る') + ' →';
+  linkEl.style.display = safeUrl !== '#' ? 'inline-block' : 'none';
 
   document.getElementById('overlay').classList.add('active');
 }}
