@@ -156,8 +156,22 @@ class TestBidProject:
         )
         row = p.to_row("2026-04-01")
         assert row[0] == "2026-04-01"  # 取得日
-        assert row[1] == "印刷業務"     # 案件名
-        assert row[2] == "東京都"       # 発注元
-        assert row[8] == "4.5"          # スコア
-        assert row[10] == "未確認"      # ステータス
-        assert len(row) == 11           # 11列
+        assert row[1] == "印刷業務"  # 案件名
+        assert row[2] == "東京都"  # 発注元
+        assert row[6] == ""  # 過去落札金額（未設定）
+        assert row[7] == ""  # 過去落札者（未設定）
+        assert row[10] == "4.5"  # スコア
+        assert row[12] == "未確認"  # ステータス
+        assert len(row) == 13  # 13列
+
+    def test_to_row_with_past_award(self) -> None:
+        p = BidProject(
+            title="印刷業務",
+            organization="東京都",
+            score=4.0,
+            past_award_price=1_000_000,
+            past_award_winner="株式会社テスト印刷",
+        )
+        row = p.to_row("2026-04-01")
+        assert row[6] == "1,000,000"  # 過去落札金額
+        assert row[7] == "株式会社テスト印刷"  # 過去落札者

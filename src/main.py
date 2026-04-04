@@ -13,11 +13,13 @@ import logging
 
 from src.core.dedup import deduplicate
 from src.core.filter import apply_filters
+from src.core.matcher import match_past_results
 from src.core.models import BidProject
 from src.core.scorer import score_projects
 from src.core.writer import write_log, write_projects
 from src.sources.etokyo import fetch_etokyo_projects
 from src.sources.kkj import fetch_kkj_projects
+from src.sources.pportal import fetch_award_results
 
 
 def _sanitize_error(e: Exception, max_len: int = 200) -> str:
@@ -27,6 +29,7 @@ def _sanitize_error(e: Exception, max_len: int = 200) -> str:
     if "?" in msg:
         msg = msg.split("?")[0] + "?..."
     return msg
+
 
 logger = logging.getLogger(__name__)
 
@@ -84,13 +87,25 @@ def run(sources: list[str] | None = None) -> None:
     unique = deduplicate(filtered)
     logger.info("重複排除後: %d件", len(unique))
 
-    # === 4. スコアリング ===
-    scored = score_projects(unique)
+    # === 4. 過去落札金額マッチング ===
+    logger.info("=== 過去落札実績を取得中 ===")
+    try:
+        award_results = fetch_award_results()
+        logger.info("落札実績: %d件取得", len(award_results))
+        matched = match_past_results(unique, award_results)
+        matched_count = sum(1 for p in matched if p.past_award_price is not None)
+        logger.info("過去金額マッチング: %d件中 %d件に紐付け", len(matched), matched_count)
+    except Exception as e:
+        logger.warning("落札実績取得エラー（スキップ）: %s", _sanitize_error(e))
+        matched = unique
+
+    # === 5. スコアリング ===
+    scored = score_projects(matched)
 
     # スコア降順でソート
     scored.sort(key=lambda p: p.score, reverse=True)
 
-    # === 5. Spreadsheet書き込み ===
+    # === 6. Spreadsheet書き込み ===
     new_count = write_projects(scored)
     logger.info("=== 完了: %d件の新規案件を追加 ===", new_count)
 

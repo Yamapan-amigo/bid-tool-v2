@@ -9,6 +9,7 @@ API仕様: https://www.kkj.go.jp/doc/ja/api_guide.pdf
 from __future__ import annotations
 
 import logging
+import re
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
@@ -78,6 +79,11 @@ def _parse_project(item: ET.Element) -> BidProject | None:
     if prefecture and not any(pref in prefecture for pref in TARGET_PREFECTURES):
         return None
 
+    # D等級チェック（クライアント側）: Certificationフィールドがある場合のみ
+    cert = _text(item, "Certification") or ""
+    if cert and "D" not in cert.upper():
+        return None
+
     # 除外キーワードチェック
     if any(kw in title for kw in EXCLUDE_KEYWORDS):
         return None
@@ -92,8 +98,14 @@ def _parse_project(item: ET.Element) -> BidProject | None:
         except ValueError:
             pass
 
+    description = _text(item, "ProjectDescription") or ""
+
     procedure_code = _text(item, "ProcedureType") or ""
-    bid_type = KKJ_PROCEDURE_TYPES.get(procedure_code, procedure_code or "不明")
+    bid_type = KKJ_PROCEDURE_TYPES.get(procedure_code, procedure_code or "")
+
+    # XMLに入札方式がない場合、説明文やタイトルから抽出
+    if not bid_type:
+        bid_type = _extract_bid_type(title, description)
 
     publish_date = _text(item, "CftIssueDate") or ""
     if publish_date:
@@ -102,6 +114,21 @@ def _parse_project(item: ET.Element) -> BidProject | None:
         deadline = deadline[:10]
 
     detail_url = _text(item, "ExternalDocumentURI") or ""
+    # 汎用検索ページURLは除外（案件固有の情報がない）
+    if "pps-web-biz/UAA01" in detail_url:
+        detail_url = ""
+
+    # 締切日がXMLにない場合、descriptionから抽出を試みる
+    if not deadline and description:
+        deadline = _extract_deadline_from_text(description)
+
+    # 他の日付フィールドも試す
+    if not deadline:
+        for tag in ("TenderSubmissionDeadline", "OpeningTendersEvent"):
+            val = _text(item, tag) or ""
+            if val:
+                deadline = val[:10]
+                break
 
     # 発注元: OrganizationName を優先、なければ PrefectureName
     organization = org if org else prefecture
@@ -114,7 +141,114 @@ def _parse_project(item: ET.Element) -> BidProject | None:
         deadline=deadline,
         detail_url=detail_url,
         source=KKJ_SOURCE_NAME,
+        description=description,
     )
+
+
+# 入札方式の抽出（完全一致優先、部分一致フォールバック）
+_BID_TYPE_EXACT: list[tuple[str, str]] = [
+    ("一般競争入札", "一般競争入札"),
+    ("指名競争入札", "指名競争入札"),
+    ("条件付き一般競争入札", "条件付一般競争入札"),
+    ("希望制指名競争入札", "希望制指名競争入札"),
+    ("随意契約", "随意契約"),
+    ("公募型プロポーザル", "公募型プロポーザル"),
+    ("企画競争", "企画競争"),
+    ("見積合わせ", "見積合わせ"),
+]
+
+_BID_TYPE_PARTIAL: list[tuple[str, str]] = [
+    ("一般競争", "一般競争入札"),
+    ("プロポーザル", "公募型プロポーザル"),
+    ("見積", "見積合わせ"),
+    ("公募", "公募"),
+]
+
+
+def _extract_bid_type(title: str, description: str) -> str:
+    """タイトルと説明文から入札方式を抽出する"""
+    text = title + " " + description
+
+    # 完全一致を優先
+    for keyword, label in _BID_TYPE_EXACT:
+        if keyword in text:
+            return label
+
+    # 部分一致フォールバック
+    for keyword, label in _BID_TYPE_PARTIAL:
+        if keyword in text:
+            return label
+
+    return "不明"
+
+
+# 締切日抽出用パターン（優先度順）
+_DEADLINE_PATTERNS: list[re.Pattern[str]] = [
+    # 入札書の受付/提出期限
+    re.compile(
+        r"入札(?:書)?の?(?:受付|提出)(?:期限|締切).*?"
+        r"令和\s*(\d+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日"
+    ),
+    # 入札日時
+    re.compile(
+        r"入札[日時]*\s*[：:]?\s*令和\s*(\d+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日"
+    ),
+    # 提出/受付/申請の期限・締切
+    re.compile(
+        r"(?:提出|受付|申請|申込).{0,15}?(?:期限|締切|まで).{0,20}?"
+        r"令和\s*(\d+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日"
+    ),
+    # 締切日/締切：
+    re.compile(
+        r"締切\s*[日：:].{0,20}?令和\s*(\d+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日"
+    ),
+    # 応募/願い出/参加申請の期間・期限
+    re.compile(
+        r"(?:応募|願い出|参加申請|参加資格申請|入札参加).{0,15}?"
+        r"(?:期間|期限|まで).{0,30}?"
+        r"令和\s*(\d+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日"
+    ),
+    # 開札日（入札の結果発表日＝入札締切の参考）
+    re.compile(
+        r"開札.{0,10}?令和\s*(\d+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日"
+    ),
+]
+
+# 最終フォールバック: 本文中の全日付を抽出して最も未来のものを返す
+_DATE_GENERIC = re.compile(r"令和\s*(\d+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日")
+
+
+def _reiwa_to_date(reiwa_year: int, month: int, day: int) -> datetime | None:
+    """令和年をdatetimeに変換（無効な日付はNone）"""
+    try:
+        return datetime(reiwa_year + 2018, month, day)
+    except ValueError:
+        return None
+
+
+def _extract_deadline_from_text(text: str) -> str:
+    """説明文から締切日を正規表現で抽出する"""
+    # 優先パターンで順番に試す
+    for pattern in _DEADLINE_PATTERNS:
+        m = pattern.search(text)
+        if m:
+            dt = _reiwa_to_date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            if dt:
+                return dt.strftime("%Y-%m-%d")
+
+    # フォールバック: 本文中の全日付から最も未来の日付を返す
+    all_dates: list[datetime] = []
+    for m in _DATE_GENERIC.finditer(text):
+        dt = _reiwa_to_date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        if dt and dt > datetime.now():
+            all_dates.append(dt)
+
+    if all_dates:
+        # 最も近い未来の日付を返す
+        all_dates.sort()
+        return all_dates[0].strftime("%Y-%m-%d")
+
+    return ""
 
 
 def _text(element: ET.Element, tag: str) -> str | None:

@@ -88,11 +88,13 @@
 ```
 GitHub Actions (cron: 毎朝 8:00 JST)
   └─ Python スクリプト
-       ├─ 1. 官公需API → XML parse → filter
+       ├─ 1. 官公需API → XML parse → filter (Certification=D)
        ├─ 2. e-Tokyo → session → search → HTML parse
-       ├─ 3. 自治体サイト → fetch → BeautifulSoup parse
-       ├─ 4. 統合 → 重複排除 → フィルタ → スコアリング
-       └─ 5. gspread → Spreadsheet 書き込み
+       ├─ 3. 調達ポータル → CSV download → 過去落札実績取得 ★NEW
+       ├─ 4. 統合 → 重複排除 → フィルタ
+       ├─ 5. 過去落札金額マッチング（案件名類似度） ★NEW
+       ├─ 6. スコアリング（過去金額反映）
+       └─ 7. gspread → Spreadsheet 書き込み (13列)
 
 GAS (Spreadsheet側)
   └─ UI専用: メニュー、条件付き書式、フィルタ、ドロップダウン
@@ -180,7 +182,7 @@ GAS (Spreadsheet側)
 
 ## 6. データモデル
 
-### 案件一覧シート（11列）
+### 案件一覧シート（13列）
 
 | 列 | カラム名 | 型 | ソース | 説明 |
 |----|---------|-----|-------|------|
@@ -190,17 +192,19 @@ GAS (Spreadsheet側)
 | D | 入札方式 | text | API/HTML | 一般競争入札 / 指名競争入札 / 随意契約 等 |
 | E | 公告日 | date | API/HTML | YYYY-MM-DD |
 | F | 締切日 | date | API/HTML | YYYY-MM-DD |
-| G | 案件詳細URL | url | API/HTML | 案件ページへのリンク |
-| H | データソース | text | Python | 官公需 / e-Tokyo / 自治体名 |
-| I | スコア | number | Python | 1-5（アルゴリズム算出） |
-| J | メモ | text | ユーザー | 手動入力 |
-| K | ステータス | enum | ユーザー | 未確認 / 確認済 / 応札予定 / 見送り |
+| G | 過去落札金額 | number | 調達ポータル | 同種案件の前年度落札額（円） ★NEW |
+| H | 過去落札者 | text | 調達ポータル | 前年度の落札者名 ★NEW |
+| I | 案件詳細URL | url | API/HTML | 案件ページへのリンク |
+| J | データソース | text | Python | 官公需 / e-Tokyo / 自治体名 |
+| K | スコア | number | Python | 1-5（アルゴリズム算出） |
+| L | メモ | text | ユーザー | 手動入力 |
+| M | ステータス | enum | ユーザー | 未確認 / 確認済 / 応札予定 / 見送り |
 
 ### V1からの変更
 
-- 13列 → 11列に削減
+- V1(13列) → V2(13列、構成変更)
 - 廃止: 推定金額、仕様書URL（詳細URLから辿れる）、カテゴリ（印刷で絞り済み）、おすすめ度（文字列→スコアに変更）
-- 追加: データソース（どこから取得したか明示）
+- 追加: データソース、過去落札金額、過去落札者
 
 ### スコアリングロジック（案）
 

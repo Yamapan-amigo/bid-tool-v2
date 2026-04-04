@@ -8,7 +8,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from src.config import CORE_KEYWORDS, SCORE_PENALTY_KEYWORDS
+from src.config import (
+    AWARD_PRICE_TARGET_MAX,
+    AWARD_PRICE_TARGET_MIN,
+    CORE_KEYWORDS,
+    SCORE_PENALTY_KEYWORDS,
+)
 from src.core.models import BidProject
 
 
@@ -51,6 +56,13 @@ def calculate_score(project: BidProject) -> float:
     # 除外ワードペナルティ
     if any(kw in title for kw in SCORE_PENALTY_KEYWORDS):
         score -= 2.0
+
+    # 過去落札金額ボーナス/ペナルティ
+    if project.past_award_price is not None:
+        if AWARD_PRICE_TARGET_MIN <= project.past_award_price <= AWARD_PRICE_TARGET_MAX:
+            score += 1.0  # 狙い目の金額帯
+        elif project.past_award_price > 3_000_000:
+            score -= 1.0  # 高額案件は回避
 
     # clamp 1.0〜5.0
     return max(1.0, min(5.0, score))
