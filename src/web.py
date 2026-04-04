@@ -37,7 +37,10 @@ def _extract_summary(text: str, title: str) -> str:
     from src.core.summarizer import summarize_description
 
     summary = summarize_description(text, title)
-    return html.escape(summary).replace("\n", "<br>")
+    escaped = html.escape(summary)
+    # Markdown太字 **text** → <strong>text</strong>
+    escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+    return escaped.replace("\n", "<br>")
 
 
 def _format_description(text: str) -> str:
