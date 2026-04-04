@@ -90,11 +90,13 @@ _REGION_RESTRICT_SHORT = re.compile(
     r"((?:県|都|府|市|区|町|村)内)\s*(?:に|の)?\s*(?:本店|本社|営業所|支店|事業所|住所)"
 )
 
-# 「関東地域の競争参加資格」等の広域地域表現
-# ※ 「東海」は除外（東海村=茨城県の地名で、地域制限ではない）
+# 「関東地域の競争参加資格」「関東・甲信越地域」等の広域地域表現
 _REGION_AREA = re.compile(
-    r"(関東|甲信越|全国)\s*(?:地域|地方|・)?\s*(?:の|における)?\s*競争参加資格"
+    r"(関東[・\s]*甲信越|関東|全国)\s*(?:地域|地方)?\s*(?:の|における)?\s*競争参加資格"
 )
+
+# 関東を含む地域名は参加OK
+_OK_AREA_KEYWORDS = {"関東", "関東・甲信越", "関東甲信越", "全国"}
 
 
 def _extract_region(text: str, organization: str) -> tuple[str, bool | None]:
@@ -119,8 +121,8 @@ def _extract_region(text: str, organization: str) -> tuple[str, bool | None]:
     # 「関東地域」等の広域表現
     m = _REGION_AREA.search(text)
     if m:
-        area = m.group(1)
-        ok = area in ("関東", "甲信越", "全国")
+        area = m.group(1).replace(" ", "").replace("　", "")
+        ok = any(kw in area for kw in _OK_AREA_KEYWORDS)
         return f"{area}地域", ok
 
     # 地域制限の記載がない = 制限なし（国の機関に多い）
