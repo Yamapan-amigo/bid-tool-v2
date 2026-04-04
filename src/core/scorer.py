@@ -64,6 +64,10 @@ def calculate_score(project: BidProject) -> float:
         elif project.past_award_price > 3_000_000:
             score -= 1.0  # 高額案件は回避
 
+    # 参加不可（×）は強制的に1.0
+    if project.eligibility_overall == "×":
+        return 1.0
+
     # clamp 1.0〜5.0
     return max(1.0, min(5.0, score))
 

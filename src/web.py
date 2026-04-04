@@ -299,9 +299,9 @@ def _render_html(
       <div class="filter-group">
         <label>参加可否</label>
         <select id="filter-elig" onchange="applyFilters()">
-          <option value="">すべて</option>
-          <option value="◎">◎ 参加可能のみ</option>
-          <option value="◎○">◎○ 参加不可を除外</option>
+          <option value="◎○" selected>◎○ 参加可能のみ</option>
+          <option value="◎">◎ のみ</option>
+          <option value="">すべて（×含む）</option>
         </select>
       </div>
       <div class="filter-group">
@@ -535,12 +535,15 @@ function applyFilters() {{
 }}
 
 function resetFilters() {{
-  document.getElementById('filter-elig').value = '';
+  document.getElementById('filter-elig').value = '◎○';
   document.getElementById('filter-bid-type').value = '';
   document.getElementById('filter-score').value = '';
   document.getElementById('filter-keyword').value = '';
   applyFilters();
 }}
+
+// 初期表示時にフィルタを適用（×を非表示）
+document.addEventListener('DOMContentLoaded', applyFilters);
 </script>
 </body>
 </html>"""
