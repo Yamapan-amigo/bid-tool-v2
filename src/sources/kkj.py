@@ -85,6 +85,17 @@ def _parse_project(item: ET.Element) -> BidProject | None:
     if cert and "D" not in cert.upper():
         return None
 
+    # 案件名に印刷関連キーワードが含まれない場合は除外
+    # （APIは説明文中の「納入印刷物」等でもヒットするため、タイトルで再フィルタ）
+    _TITLE_KEYWORDS = [
+        *SEARCH_KEYWORDS,  # 印刷,製本,広報誌,パンフレット,チラシ,ポスター,冊子,封筒
+        "用紙", "図書", "トナー", "インク", "刷成", "名刺",
+        "カタログ", "リーフレット", "白書", "概要", "年報",
+        "複写", "コピー", "プリント",
+    ]
+    if not any(kw in title for kw in _TITLE_KEYWORDS):
+        return None
+
     # 除外キーワードチェック
     if any(kw in title for kw in EXCLUDE_KEYWORDS):
         return None
