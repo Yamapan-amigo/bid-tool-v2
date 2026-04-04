@@ -305,43 +305,48 @@ def _extract_spec_url(item: ET.Element) -> str:
 
 # テキスト内URL抽出用
 _URL_PATTERN = re.compile(r"https?://[a-zA-Z0-9\-._~:/?#\[\]@!$&'*+,;=%]+")
-_PORTAL_GENERIC = "pps-web-biz/UAA01"
-_SPEC_KEYWORDS = ["仕様書", "仕様", "入札説明書", "説明書"]
+_PORTAL_GENERIC = "pps-web-biz/"
+
+# URL自体またはURLの直前ラベルに含まれるべきキーワード
+_SPEC_URL_KEYWORDS = ["仕様書", "shiyou", "spec"]
+# URLの直前に「仕様書」ラベルがある場合のパターン
+_SPEC_LABEL_PATTERN = re.compile(
+    r"(?:仕様書|入札説明書)\s*(?:[（(][^）)]*[）)])?[\s：:はを]*"
+    r"(https?://[a-zA-Z0-9\-._~:/?#\[\]@!$&'*+,;=%]+)"
+)
 
 
 def _extract_spec_url_from_text(text: str) -> str:
-    """公告テキストからURLを抽出し、仕様書らしきものを返す"""
+    """公告テキストからURLを抽出し、仕様書らしきものを返す
+
+    厳格なルール:
+    - URLのパス/ファイル名に「仕様」「spec」が含まれる、または
+    - URLの直前に「仕様書」「入札説明書」というラベルがある
+    - 汎用PDFや無関係なURLは返さない
+    """
     if not text:
         return ""
 
+    # 方法1: 「仕様書 https://...」のようにラベル直後にURLがあるパターン
+    m = _SPEC_LABEL_PATTERN.search(text)
+    if m:
+        url = m.group(1)
+        if url.startswith(("http://", "https://")) and _PORTAL_GENERIC not in url:
+            return url
+
+    # 方法2: URL自体に仕様書関連のキーワードが含まれる
     urls = _URL_PATTERN.findall(text)
-    # 調達ポータル汎用URLを除外
-    urls = [u for u in urls if _PORTAL_GENERIC not in u]
-    # http/httpsのみ
-    urls = [u for u in urls if u.startswith(("http://", "https://"))]
-
-    if not urls:
-        return ""
-
-    # 仕様書キーワードの直後にあるURLを優先
-    for kw in _SPEC_KEYWORDS:
-        idx = text.find(kw)
-        if idx < 0:
+    for url in urls:
+        if _PORTAL_GENERIC in url:
             continue
-        # キーワードの後ろ300文字以内で最初に出てくるURLを返す
-        after = text[idx : idx + 300]
-        after_urls = _URL_PATTERN.findall(after)
-        after_urls = [u for u in after_urls if _PORTAL_GENERIC not in u]
-        if after_urls:
-            return after_urls[0]
+        if not url.startswith(("http://", "https://")):
+            continue
+        url_lower = url.lower()
+        if any(kw in url_lower for kw in _SPEC_URL_KEYWORDS):
+            return url
 
-    # フォールバック: PDFっぽいURLを優先
-    pdf_urls = [u for u in urls if u.endswith(".pdf") or ".pdf" in u]
-    if pdf_urls:
-        return pdf_urls[0]
-
-    # 最後の手段: 最初のURL
-    return urls[0]
+    # 仕様書と明確に紐付けられないURLは返さない
+    return ""
 
 
 def _find_all_items(root: ET.Element) -> list[ET.Element]:
