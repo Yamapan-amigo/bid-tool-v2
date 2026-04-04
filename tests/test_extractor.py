@@ -49,6 +49,12 @@ class TestRegionExtraction:
         text = "関東・甲信越地域の競争参加資格を有する者"
         info = extract_eligibility(text, "厚生労働省")
         assert info.region_ok is True
+        assert "関東" in info.region_text  # 「甲信越」だけでなく「関東」が表示される
+
+    def test_kanto_only(self) -> None:
+        text = "関東地域の競争参加資格を有する者"
+        info = extract_eligibility(text, "厚生労働省")
+        assert info.region_ok is True
 
     def test_no_region_restriction(self) -> None:
         text = "予算決算及び会計令第70条の規定に該当しない者"
