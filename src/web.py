@@ -10,6 +10,7 @@ import html
 import json
 import logging
 import re
+from datetime import datetime
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 from src.core.dedup import deduplicate
@@ -389,7 +390,7 @@ def _render_html(
   </div>
 
   <div class="footer">
-    データソース: 官公需API + 調達ポータルオープンデータ ｜ AI不使用 ｜ サーバー費用ゼロ
+    最終更新: {datetime.now().strftime('%Y-%m-%d %H:%M')} ｜ データソース: 官公需API + e-Tokyo + 調達ポータル
   </div>
 
 <script>
@@ -499,25 +500,54 @@ class Handler(SimpleHTTPRequestHandler):
         pass
 
 
-def serve(port: int = 8080) -> None:
+def generate(output_path: str = "docs/index.html") -> str:
+    """静的HTMLファイルを生成する（GitHub Pages用）"""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
 
-    print("データ取得中...")
+    logger.info("データ取得中...")
     projects, raw_count, award_count, matched_count = _collect_data()
-    print(f"完了: {len(projects)}件の案件を取得")
-    print()
+    logger.info("完了: %d件の案件を取得", len(projects))
+
+    html_content = _render_html(projects, raw_count, award_count, matched_count)
+
+    from pathlib import Path
+
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(html_content, encoding="utf-8")
+    logger.info("HTMLを出力: %s", output_path)
+    return output_path
+
+
+def serve(port: int = 8080) -> None:
+    """ローカル開発サーバー"""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    logger.info("データ取得中...")
+    projects, raw_count, award_count, matched_count = _collect_data()
+    logger.info("完了: %d件の案件を取得", len(projects))
 
     Handler.html_content = _render_html(projects, raw_count, award_count, matched_count)
 
     server = HTTPServer(("localhost", port), Handler)
-    print(f"ブラウザで確認: http://localhost:{port}")
-    print("停止: Ctrl+C")
+    logger.info("ブラウザで確認: http://localhost:%d", port)
+    logger.info("停止: Ctrl+C")
     server.serve_forever()
 
 
 if __name__ == "__main__":
-    serve()
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "--generate":
+        output = sys.argv[2] if len(sys.argv) > 2 else "docs/index.html"
+        generate(output)
+    else:
+        serve()
