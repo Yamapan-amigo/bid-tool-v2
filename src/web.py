@@ -114,6 +114,7 @@ def _render_html(
     matched_count: int,
 ) -> str:
     """結果をHTMLに変換する"""
+    today = datetime.now().strftime("%Y-%m-%d")
     rows_html = ""
     for i, p in enumerate(projects, 1):
         score_class = ""
@@ -133,6 +134,15 @@ def _render_html(
 
         deadline_display = p.deadline or "要確認"
 
+        # 締切日までの残日数に応じたクラス
+        deadline_class = ""
+        if p.deadline and p.deadline >= today:
+            days_left = (datetime.strptime(p.deadline, "%Y-%m-%d") - datetime.strptime(today, "%Y-%m-%d")).days
+            if days_left <= 3:
+                deadline_class = "deadline-urgent"
+            elif days_left <= 7:
+                deadline_class = "deadline-warn"
+
         elig_class = "elig-ok" if p.eligibility_overall == "◎" else "elig-check" if p.eligibility_overall == "○" else "elig-ng"
         tr_class = ' class="row-ng"' if p.eligibility_overall == "×" else ""
 
@@ -148,7 +158,7 @@ def _render_html(
           <td data-label="発注元">{html.escape(p.organization)}</td>
           <td data-label="入札方式">{html.escape(p.bid_type)}</td>
           <td data-label="公告日">{p.publish_date}</td>
-          <td data-label="締切日">{deadline_display}</td>
+          <td class="{deadline_class}" data-label="締切日">{deadline_display}</td>
           <td class="{score_class}" data-label="おすすめ">{score_label}</td>
         </tr>"""
 
@@ -246,6 +256,8 @@ def _render_html(
   .score-high {{ background: #e8f5e9; color: #2e7d32; font-weight: 700; text-align: center; border-radius: 4px; }}
   .score-mid {{ background: #fff8e1; color: #f57f17; font-weight: 600; text-align: center; border-radius: 4px; }}
   .score-low {{ color: #999; text-align: center; }}
+  .deadline-urgent {{ color: #d32f2f; font-weight: 700; }}
+  .deadline-warn {{ color: #e65100; font-weight: 600; }}
 
   /* === モーダル === */
   .overlay {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }}
