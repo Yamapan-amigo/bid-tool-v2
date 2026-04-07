@@ -143,6 +143,13 @@ def _render_html(
             elif days_left <= 7:
                 deadline_class = "deadline-warn"
 
+        # 公告日から3日以内なら新着バッジ
+        new_badge = ""
+        if p.publish_date:
+            days_since = (datetime.strptime(today, "%Y-%m-%d") - datetime.strptime(p.publish_date, "%Y-%m-%d")).days
+            if 0 <= days_since <= 3:
+                new_badge = ' <span class="badge-new">NEW</span>'
+
         elig_class = "elig-ok" if p.eligibility_overall == "◎" else "elig-check" if p.eligibility_overall == "○" else "elig-ng"
         tr_class = ' class="row-ng"' if p.eligibility_overall == "×" else ""
 
@@ -154,7 +161,7 @@ def _render_html(
             data-org="{html.escape(p.organization)}">
           <td class="row-num" data-label="#">{i}</td>
           <td class="{elig_class}" data-label="可否">{p.eligibility_overall}</td>
-          <td class="title" data-label="案件名">{html.escape(p.title)}</td>
+          <td class="title" data-label="案件名">{html.escape(p.title)}{new_badge}</td>
           <td data-label="発注元">{html.escape(p.organization)}</td>
           <td data-label="入札方式">{html.escape(p.bid_type)}</td>
           <td data-label="公告日">{p.publish_date}</td>
@@ -258,6 +265,7 @@ def _render_html(
   .score-low {{ color: #999; text-align: center; }}
   .deadline-urgent {{ color: #d32f2f; font-weight: 700; }}
   .deadline-warn {{ color: #e65100; font-weight: 600; }}
+  .badge-new {{ display: inline-block; background: #1a73e8; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; margin-left: 6px; vertical-align: middle; letter-spacing: 0.5px; }}
 
   /* === モーダル === */
   .overlay {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }}
