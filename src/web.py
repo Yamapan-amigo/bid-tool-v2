@@ -10,7 +10,7 @@ import html
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 from src.core.dedup import deduplicate
@@ -550,7 +550,7 @@ def _render_html(
   </div>
 
   <div class="footer">
-    最終更新: {datetime.now().strftime('%Y-%m-%d %H:%M')} ｜ データソース: 官公需API + e-Tokyo + 調達ポータル
+    最終更新: {datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M')} (JST) ｜ データソース: 官公需API + e-Tokyo + 調達ポータル
   </div>
 
 <script>
