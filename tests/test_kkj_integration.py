@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -30,7 +31,8 @@ class TestFetchKkjProjects:
         mock_response.content = xml_content
         mock_get.return_value = mock_response
 
-        projects = fetch_kkj_projects()
+        with patch("src.sources.kkj._today_jst_date", return_value=date(2026, 4, 15)):
+            projects = fetch_kkj_projects()
 
         # 5件中: 東京(OK), 埼玉(OK), 中央省庁(除外:道路), 北海道(除外:地域外), 締切済(除外)
         # → 2件が残る

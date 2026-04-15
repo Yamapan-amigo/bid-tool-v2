@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
+from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 from src.sources.kkj import _find_all_items, _parse_project, _text
 
@@ -37,7 +39,8 @@ class TestParseProject:
     def test_valid_tokyo_project(self) -> None:
         root = _load_fixture()
         items = _find_all_items(root)
-        project = _parse_project(items[0])
+        with patch("src.sources.kkj._today_jst_date", return_value=date(2026, 4, 15)):
+            project = _parse_project(items[0])
         assert project is not None
         assert project.title == "令和7年度 広報誌印刷業務"
         assert project.organization == "東京都総務局"
@@ -49,7 +52,8 @@ class TestParseProject:
     def test_valid_saitama_project(self) -> None:
         root = _load_fixture()
         items = _find_all_items(root)
-        project = _parse_project(items[1])
+        with patch("src.sources.kkj._today_jst_date", return_value=date(2026, 4, 15)):
+            project = _parse_project(items[1])
         assert project is not None
         assert project.organization == "埼玉県教育委員会"
 
@@ -57,7 +61,8 @@ class TestParseProject:
         """PrefectureName空欄（中央省庁）は地域フィルタを通過する"""
         root = _load_fixture()
         items = _find_all_items(root)
-        project = _parse_project(items[2])
+        with patch("src.sources.kkj._today_jst_date", return_value=date(2026, 4, 15)):
+            project = _parse_project(items[2])
         # 道路が除外キーワードに含まれるため除外される
         assert project is None
 
@@ -65,12 +70,14 @@ class TestParseProject:
         """対象地域外（北海道）は除外される"""
         root = _load_fixture()
         items = _find_all_items(root)
-        project = _parse_project(items[3])
+        with patch("src.sources.kkj._today_jst_date", return_value=date(2026, 4, 15)):
+            project = _parse_project(items[3])
         assert project is None
 
     def test_excluded_by_deadline(self) -> None:
         """締切済み案件は除外される"""
         root = _load_fixture()
         items = _find_all_items(root)
-        project = _parse_project(items[4])
+        with patch("src.sources.kkj._today_jst_date", return_value=date(2026, 4, 15)):
+            project = _parse_project(items[4])
         assert project is None

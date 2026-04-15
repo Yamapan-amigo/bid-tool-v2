@@ -25,6 +25,7 @@ from src.config import (
     ETOKYO_WARD_CODES,
     SEARCH_KEYWORDS,
 )
+from src.core.categorizer import classify
 from src.core.models import BidProject
 
 logger = logging.getLogger(__name__)
@@ -272,6 +273,7 @@ def _parse_project_row(row: Tag) -> BidProject | None:
         deadline=deadline,
         detail_url=detail_url,
         source=ETOKYO_SOURCE_NAME,
+        category=classify(title),
     )
 
 
