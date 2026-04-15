@@ -12,7 +12,7 @@ import logging
 import re
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import defusedxml.ElementTree as DefusedET
 import requests
@@ -27,10 +27,12 @@ from src.config import (
     SEARCH_KEYWORDS,
     TARGET_PREFECTURES,
 )
+from src.core.categorizer import classify
 from src.core.extractor import extract_eligibility
 from src.core.models import BidProject
 
 logger = logging.getLogger(__name__)
+_JST = timezone(timedelta(hours=9))
 
 
 def _build_date_range(days: int = 30) -> str:
@@ -67,6 +69,11 @@ def _fetch_xml(keyword: str, category: str, date_range: str) -> ET.Element | Non
     return None
 
 
+def _today_jst_date() -> date:
+    """JST基準の本日日付を返す"""
+    return datetime.now(_JST).date()
+
+
 def _parse_project(item: ET.Element) -> BidProject | None:
     """XML要素から BidProject を生成する"""
     title = _text(item, "ProjectName")
@@ -85,13 +92,32 @@ def _parse_project(item: ET.Element) -> BidProject | None:
     if cert and "D" not in cert.upper():
         return None
 
-    # 案件名に印刷関連キーワードが含まれない場合は除外
-    # （APIは説明文中の「納入印刷物」等でもヒットするため、タイトルで再フィルタ）
+    # 案件名に検索キーワードのいずれかが含まれない場合は除外
+    # （APIは説明文中のヒットでもマッチを返すため、タイトルで最小限の再フィルタ）
     _TITLE_KEYWORDS = [
-        *SEARCH_KEYWORDS,  # 印刷,製本,広報誌,パンフレット,チラシ,ポスター,冊子,封筒
-        "用紙", "図書", "トナー", "インク", "刷成", "名刺",
-        "カタログ", "リーフレット", "白書", "概要", "年報",
-        "複写", "コピー", "プリント",
+        *SEARCH_KEYWORDS,
+        # 歴史的に拾いたい追加語（SEARCH_KEYWORDS に含まれないもの）
+        "図書",
+        "インク",
+        "刷成",
+        "白書",
+        "概要",
+        "年報",
+        "複写",
+        "コピー",
+        "プリント",
+        "ノベルティ",
+        "グッズ",
+        "記念品",
+        "販促",
+        "Webサイト",
+        "動画",
+        "映像",
+        "バナー",
+        "デザイン",
+        "文房具",
+        "封入",
+        "梱包",
     ]
     if not any(kw in title for kw in _TITLE_KEYWORDS):
         return None
@@ -104,8 +130,8 @@ def _parse_project(item: ET.Element) -> BidProject | None:
     deadline = _text(item, "PeriodEndTime") or ""
     if deadline:
         try:
-            deadline_date = datetime.strptime(deadline[:10], "%Y-%m-%d")
-            if deadline_date < datetime.now():
+            deadline_date = datetime.strptime(deadline[:10], "%Y-%m-%d").date()
+            if deadline_date < _today_jst_date():
                 return None
         except ValueError:
             pass
@@ -168,6 +194,7 @@ def _parse_project(item: ET.Element) -> BidProject | None:
         eligibility_region=eligibility.region_text,
         eligibility_method=eligibility.submission_method,
         eligibility_contact=eligibility.contact,
+        category=classify(title, description),
     )
 
 

@@ -27,27 +27,31 @@ def _make_project(publish_date: str, title: str = "テスト案件") -> BidProje
 
 @pytest.fixture
 def html_with_dates() -> str:
-    today = datetime.now().strftime("%Y-%m-%d")
+    today_dt = datetime(2026, 4, 7)
+    today = today_dt.strftime("%Y-%m-%d")
     projects = [
         _make_project(today, title="本日公告"),
         _make_project(
-            (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
+            (today_dt - timedelta(days=2)).strftime("%Y-%m-%d"),
             title="2日前公告",
         ),
         _make_project(
-            (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d"),
+            (today_dt - timedelta(days=3)).strftime("%Y-%m-%d"),
             title="3日前公告",
         ),
         _make_project(
-            (datetime.now() - timedelta(days=4)).strftime("%Y-%m-%d"),
+            (today_dt - timedelta(days=4)).strftime("%Y-%m-%d"),
             title="4日前公告",
         ),
         _make_project(
-            (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d"),
+            (today_dt - timedelta(days=10)).strftime("%Y-%m-%d"),
             title="10日前公告",
         ),
     ]
-    with patch("src.web._extract_summary", return_value="テスト要約"):
+    with patch("src.web._extract_summary", return_value="テスト要約"), patch(
+        "src.web._today_jst_date",
+        return_value=today_dt.date(),
+    ):
         return _render_html(projects, raw_count=5, award_count=0, matched_count=0)
 
 

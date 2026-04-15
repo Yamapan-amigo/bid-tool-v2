@@ -27,6 +27,7 @@ class BidProject:
     eligibility_region: str = ""  # 地域要件テキスト
     eligibility_method: str = ""  # 提出方法
     eligibility_contact: str = ""  # 連絡先
+    category: str = "その他"  # 分類タグ（UI絞り込み用）
     score: float = 3.0
     past_award_price: int | None = None  # 過去落札金額（円）
     past_award_winner: str = ""  # 過去落札者名

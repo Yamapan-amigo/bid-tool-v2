@@ -23,6 +23,7 @@ from src.sources.kkj import fetch_kkj_projects
 from src.sources.pportal import fetch_award_results
 
 logger = logging.getLogger(__name__)
+_JST = timezone(timedelta(hours=9))
 
 # テキスト整形用パターン
 _SECTION_BREAK = re.compile(
@@ -107,6 +108,11 @@ def _collect_data() -> tuple[list[BidProject], int, int, int]:
     return scored, len(all_projects), len(awards), matched_count
 
 
+def _today_jst_date() -> datetime.date:
+    """JST基準の本日日付を返す"""
+    return datetime.now(_JST).date()
+
+
 def _render_html(
     projects: list[BidProject],
     raw_count: int,
@@ -114,7 +120,7 @@ def _render_html(
     matched_count: int,
 ) -> str:
     """結果をHTMLに変換する"""
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = _today_jst_date()
     rows_html = ""
     for i, p in enumerate(projects, 1):
         score_class = ""
@@ -136,19 +142,29 @@ def _render_html(
 
         # 締切日までの残日数に応じたクラス
         deadline_class = ""
-        if p.deadline and p.deadline >= today:
-            days_left = (datetime.strptime(p.deadline, "%Y-%m-%d") - datetime.strptime(today, "%Y-%m-%d")).days
-            if days_left <= 3:
-                deadline_class = "deadline-urgent"
-            elif days_left <= 7:
-                deadline_class = "deadline-warn"
+        if p.deadline:
+            try:
+                deadline_date = datetime.strptime(p.deadline, "%Y-%m-%d").date()
+            except ValueError:
+                deadline_date = None
+            if deadline_date and deadline_date >= today:
+                days_left = (deadline_date - today).days
+                if days_left <= 3:
+                    deadline_class = "deadline-urgent"
+                elif days_left <= 7:
+                    deadline_class = "deadline-warn"
 
         # 公告日から3日以内なら新着バッジ
         new_badge = ""
         if p.publish_date:
-            days_since = (datetime.strptime(today, "%Y-%m-%d") - datetime.strptime(p.publish_date, "%Y-%m-%d")).days
-            if 0 <= days_since <= 3:
-                new_badge = ' <span class="badge-new">NEW</span>'
+            try:
+                publish_date = datetime.strptime(p.publish_date, "%Y-%m-%d").date()
+            except ValueError:
+                publish_date = None
+            if publish_date:
+                days_since = (today - publish_date).days
+                if 0 <= days_since <= 3:
+                    new_badge = ' <span class="badge-new">NEW</span>'
 
         elig_class = "elig-ok" if p.eligibility_overall == "◎" else "elig-check" if p.eligibility_overall == "○" else "elig-ng"
         tr_class = ' class="row-ng"' if p.eligibility_overall == "×" else ""
@@ -158,11 +174,13 @@ def _render_html(
             data-bid-type="{html.escape(p.bid_type)}"
             data-score="{p.score}"
             data-elig="{p.eligibility_overall}"
+            data-category="{html.escape(p.category)}"
             data-org="{html.escape(p.organization)}">
           <td class="row-num" data-label="#">{i}</td>
           <td class="{elig_class}" data-label="可否">{p.eligibility_overall}</td>
           <td class="title" data-label="案件名">{html.escape(p.title)}{new_badge}</td>
           <td data-label="発注元">{html.escape(p.organization)}</td>
+          <td data-label="分類">{html.escape(p.category)}</td>
           <td data-label="入札方式">{html.escape(p.bid_type)}</td>
           <td data-label="公告日">{p.publish_date}</td>
           <td class="{deadline_class}" data-label="締切日">{deadline_display}</td>
@@ -177,6 +195,13 @@ def _render_html(
     bid_type_options = "".join(
         f'<option value="{html.escape(bt)}">{html.escape(bt)}</option>'
         for bt in bid_types
+    )
+
+    # フィルタ選択肢: 分類
+    categories = sorted({p.category for p in projects})
+    category_options = "".join(
+        f'<option value="{html.escape(c)}">{html.escape(c)}</option>'
+        for c in categories
     )
 
     # 詳細データをJSONとして埋め込む
@@ -256,6 +281,9 @@ def _render_html(
 
   table {{ width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
   th {{ background: #1a73e8; color: #fff; padding: 12px 10px; font-size: 12px; font-weight: 600; text-align: left; white-space: nowrap; position: sticky; top: 0; }}
+  th.sortable {{ cursor: pointer; user-select: none; }}
+  th.sortable:hover {{ background: #1557b0; }}
+  th.sortable::after {{ content: ' ⇅'; opacity: 0.6; font-size: 10px; }}
   td {{ padding: 10px; font-size: 13px; border-bottom: 1px solid #eee; }}
   tr:hover {{ background: #e3f2fd; }}
   .title {{ max-width: 320px; }}
@@ -416,6 +444,13 @@ def _render_html(
         </select>
       </div>
       <div class="filter-group">
+        <label>分類</label>
+        <select id="filter-category" onchange="applyFilters()">
+          <option value="">すべて</option>
+          {category_options}
+        </select>
+      </div>
+      <div class="filter-group">
         <label>入札方式</label>
         <select id="filter-bid-type" onchange="applyFilters()">
           <option value="">すべて</option>
@@ -444,6 +479,7 @@ def _render_html(
           <th>可否</th>
           <th>案件名</th>
           <th>発注元</th>
+          <th class="sortable" onclick="sortBy('category')">分類</th>
           <th>入札方式</th>
           <th>公告日</th>
           <th>締切日</th>
@@ -648,6 +684,7 @@ document.addEventListener('keydown', function(e) {{
 function applyFilters() {{
   const eligFilter = document.getElementById('filter-elig').value;
   const bidType = document.getElementById('filter-bid-type').value;
+  const category = document.getElementById('filter-category').value;
   const minScore = parseFloat(document.getElementById('filter-score').value) || 0;
   const keyword = document.getElementById('filter-keyword').value.toLowerCase();
   const rows = document.querySelectorAll('tbody tr');
@@ -656,10 +693,15 @@ function applyFilters() {{
   rows.forEach(row => {{
     const rElig = row.getAttribute('data-elig') || '';
     const rBid = row.getAttribute('data-bid-type') || '';
+    const rCategory = row.getAttribute('data-category') || '';
     const rScore = parseFloat(row.getAttribute('data-score')) || 0;
     const rText = row.textContent.toLowerCase();
     const eligOk = !eligFilter || (eligFilter === '◎' ? rElig === '◎' : rElig !== '×');
-    const show = eligOk && (!bidType || rBid === bidType) && rScore >= minScore && (!keyword || rText.includes(keyword));
+    const show = eligOk
+      && (!bidType || rBid === bidType)
+      && (!category || rCategory === category)
+      && rScore >= minScore
+      && (!keyword || rText.includes(keyword));
     row.style.display = show ? '' : 'none';
     if (show) {{
       row.querySelector('.row-num').textContent = num++;
@@ -672,8 +714,26 @@ function applyFilters() {{
 function resetFilters() {{
   document.getElementById('filter-elig').value = '◎○';
   document.getElementById('filter-bid-type').value = '';
+  document.getElementById('filter-category').value = '';
   document.getElementById('filter-score').value = '';
   document.getElementById('filter-keyword').value = '';
+  applyFilters();
+}}
+
+let _sortAsc = {{}};
+function sortBy(key) {{
+  const tbody = document.querySelector('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const asc = !_sortAsc[key];
+  _sortAsc = {{}};
+  _sortAsc[key] = asc;
+  const attr = 'data-' + key;
+  rows.sort((a, b) => {{
+    const va = a.getAttribute(attr) || '';
+    const vb = b.getAttribute(attr) || '';
+    return asc ? va.localeCompare(vb, 'ja') : vb.localeCompare(va, 'ja');
+  }});
+  rows.forEach(r => tbody.appendChild(r));
   applyFilters();
 }}
 

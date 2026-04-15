@@ -27,7 +27,7 @@ class TestIsPrintingRelated:
 
     def test_no_keyword_match(self) -> None:
         assert _is_printing_related("システム開発") is False
-        assert _is_printing_related("事務用品の購入") is False
+        assert _is_printing_related("橋梁補修設計") is False
 
 
 class TestParseRow:
