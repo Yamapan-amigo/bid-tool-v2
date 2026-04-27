@@ -9,6 +9,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from src.config import (
+    COMPANY_ANNUAL_REVENUE,
+    COMPANY_CAPITAL,
+    COMPANY_CERTIFICATIONS,
+    COMPANY_EMPLOYEES,
+    COMPANY_YEARS_SINCE_FOUNDING,
+)
+
 # 大島さんの拠点がある地域（これらの「県内」「都内」限定なら参加可能）
 # ※ 大島さんは東京拠点。近隣県の「県内限定」には参加できない
 _OK_REGIONS = {"東京"}
@@ -126,6 +134,116 @@ _EXPERIENCE_REQUIRED = re.compile(
 )
 
 
+# ============================================================
+# 会社プロフィールとの照合チェック
+# ============================================================
+
+def _parse_yen_amount(text: str) -> int | None:
+    """「500万円」「1億円」「3000万円」を整数(円)に変換"""
+    text = text.replace(",", "").replace("，", "")
+    m = re.search(r"(\d+(?:\.\d+)?)\s*億\s*(\d+)\s*万\s*円", text)
+    if m:
+        return int(float(m.group(1)) * 1e8 + float(m.group(2)) * 1e4)
+    m = re.search(r"(\d+(?:\.\d+)?)\s*億\s*円", text)
+    if m:
+        return int(float(m.group(1)) * 1e8)
+    m = re.search(r"(\d+(?:\.\d+)?)\s*千\s*万\s*円", text)
+    if m:
+        return int(float(m.group(1)) * 1e7)
+    m = re.search(r"(\d+(?:\.\d+)?)\s*万\s*円", text)
+    if m:
+        return int(float(m.group(1)) * 1e4)
+    m = re.search(r"(\d+)\s*円", text)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+_CAPITAL_PATTERN = re.compile(
+    r"資本(?:金|の額)\s*(?:が|は|の)?\s*(\d[\d,，.]*\s*(?:億|千万|万)?\s*円)\s*以上"
+)
+
+_EMPLOYEE_PATTERN = re.compile(
+    r"(?:常時(?:雇用|使用|従事)(?:する|させる|している)?)?\s*従業員(?:数|等)?\s*(?:が|は|を|の)?\s*(\d+)\s*(?:人|名)\s*以上"
+)
+
+_REVENUE_PATTERN = re.compile(
+    r"(?:直近.{0,10})?(?:年間|年度)?(?:売上高|売上額|年商)\s*(?:が|は)?\s*(\d[\d,，.]*\s*(?:億|千万|万)?\s*円)\s*以上"
+)
+
+_CERT_PATTERN = re.compile(
+    r"(?:ISO\s*\d+|JIS[A-Z]?\s*\d+|印刷技能士|グリーン印刷|FSC(?:認証)?|バリアフリー印刷士|Ｉ[ＳＯ]*Ｏ)"
+    r".{0,30}?(?:認証|資格|認定|検定)?\s*(?:を)?\s*(?:取得|保有|有する|していること|している者)"
+    r"|(?:FSC|PEFC|グリーン印刷)\s*認証"
+)
+
+_FOUNDING_YEARS_PATTERN = re.compile(
+    r"(?:設立|創業|創立)\s*(?:後|から|より)?\s*(\d+)\s*年\s*(?:以上|を経過)"
+)
+
+
+def _check_capital(text: str) -> tuple[bool, str]:
+    """資本金要件チェック。(ng_flag, reason_text)を返す"""
+    m = _CAPITAL_PATTERN.search(text)
+    if not m:
+        return False, ""
+    req = _parse_yen_amount(m.group(1))
+    if req is None or req == 0:
+        return False, ""
+    if COMPANY_CAPITAL < req:
+        req_man = req // 10000
+        return True, f"資本金{req_man}万円以上（500万円のため要件未満）"
+    return False, ""
+
+
+def _check_employees(text: str) -> tuple[bool, str]:
+    """従業員数要件チェック"""
+    m = _EMPLOYEE_PATTERN.search(text)
+    if not m:
+        return False, ""
+    req = int(m.group(1))
+    if COMPANY_EMPLOYEES < req:
+        return True, f"従業員{req}名以上（1名のため要件未満）"
+    return False, ""
+
+
+def _check_revenue(text: str) -> tuple[bool, str]:
+    """年商要件チェック"""
+    m = _REVENUE_PATTERN.search(text)
+    if not m:
+        return False, ""
+    req = _parse_yen_amount(m.group(1))
+    if req is None or req == 0:
+        return False, ""
+    if COMPANY_ANNUAL_REVENUE < req:
+        req_man = req // 10000
+        label = f"{req // 100_000_000}億円" if req >= 1e8 else f"{req_man}万円"
+        return True, f"年商{label}以上（要件未満）"
+    return False, ""
+
+
+def _check_certifications(text: str) -> tuple[bool, str]:
+    """資格・認証要件チェック"""
+    m = _CERT_PATTERN.search(text)
+    if not m:
+        return False, ""
+    if not COMPANY_CERTIFICATIONS:
+        cert_snippet = m.group(0)[:15].strip()
+        return True, f"資格要件あり（{cert_snippet}…）"
+    return False, ""
+
+
+def _check_founding_years(text: str) -> tuple[bool, str]:
+    """創業年数要件チェック"""
+    m = _FOUNDING_YEARS_PATTERN.search(text)
+    if not m:
+        return False, ""
+    req = int(m.group(1))
+    if COMPANY_YEARS_SINCE_FOUNDING < req:
+        return True, f"設立{req}年以上（{COMPANY_YEARS_SINCE_FOUNDING}年のため要件未満）"
+    return False, ""
+
+
 def _extract_region(text: str, organization: str) -> tuple[str, bool | None]:
     """地域要件を抽出する"""
     # 具体的な都道府県名での制限を検出
@@ -232,7 +350,21 @@ def extract_eligibility(text: str, organization: str) -> EligibilityInfo:
     experience_required = bool(_EXPERIENCE_REQUIRED.search(text))
     if experience_required:
         region_ok = False
-        region_text = f"実績要件あり（受注実績が必要）" + (f"｜{region_text}" if region_text != "不明" else "")
+        region_text = "実績要件あり（受注実績が必要）" + (f"｜{region_text}" if region_text != "不明" else "")
+
+    # 会社プロフィールとの照合（資本金・従業員数・年商・資格・創業年数）
+    profile_checks = [
+        _check_capital(text),
+        _check_employees(text),
+        _check_revenue(text),
+        _check_certifications(text),
+        _check_founding_years(text),
+    ]
+    extra_reasons = [reason for ng, reason in profile_checks if ng]
+    if extra_reasons:
+        region_ok = False
+        prefix = "｜".join(extra_reasons)
+        region_text = prefix + (f"｜{region_text}" if region_text not in ("不明", "制限なし") else "")
 
     # 総合判定
     if d_grade_ok is False or region_ok is False:
