@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from src.core.dedup import deduplicate
-from src.core.filter import apply_filters, is_actual_project
+from src.core.filter import apply_filters, filter_designated_bids, is_actual_project
 from src.core.models import BidProject
 from src.core.scorer import calculate_score
 
@@ -42,6 +42,35 @@ class TestApplyFilters:
         result = apply_filters(projects)
         assert len(result) == 1
         assert result[0].title == "広報誌印刷"
+
+    def test_removes_designated_bids(self) -> None:
+        projects = [
+            BidProject(title="広報誌印刷", organization="東京都", bid_type="一般競争入札"),
+            BidProject(title="封筒印刷", organization="東京都", bid_type="指名競争入札"),
+        ]
+        result = apply_filters(projects)
+        assert len(result) == 1
+        assert result[0].bid_type == "一般競争入札"
+
+
+class TestFilterDesignatedBids:
+    def test_removes_designated(self) -> None:
+        projects = [
+            BidProject(title="広報誌印刷", organization="東京都", bid_type="一般競争入札"),
+            BidProject(title="流山市ブランド映像", organization="千葉県流山市", bid_type="指名競争入札"),
+        ]
+        result = filter_designated_bids(projects)
+        assert len(result) == 1
+        assert result[0].bid_type == "一般競争入札"
+
+    def test_keeps_all_other_bid_types(self) -> None:
+        projects = [
+            BidProject(title="印刷A", organization="東京都", bid_type="一般競争入札"),
+            BidProject(title="印刷B", organization="東京都", bid_type="公募型プロポーザル"),
+            BidProject(title="印刷C", organization="東京都", bid_type="随意契約"),
+        ]
+        result = filter_designated_bids(projects)
+        assert len(result) == 3
 
 
 # ============================================================
@@ -93,6 +122,16 @@ class TestCalculateScore:
         p = BidProject(title="システム工事清掃", organization="神奈川県")
         score = calculate_score(p)
         assert score == 1.0  # base(3) - penalty(2)*multiple, but capped
+
+    def test_proposal_penalty(self) -> None:
+        p = BidProject(
+            title="広報誌印刷業務",
+            organization="東京都",
+            bid_type="公募型プロポーザル",
+        )
+        score = calculate_score(p)
+        # base(3) + core(1) + tokyo(0.5) - proposal(1.5) = 3.0
+        assert score == 3.0
 
 
 # ============================================================

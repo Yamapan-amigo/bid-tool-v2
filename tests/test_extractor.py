@@ -119,3 +119,32 @@ class TestOverallJudgment:
         text = ""
         info = extract_eligibility(text, "東京都")
         assert info.overall == "○"
+
+    def test_experience_required_marks_ineligible(self) -> None:
+        text = "過去3年以内に同種の業務を受注し納入した実績を有する者"
+        info = extract_eligibility(text, "さいたま市")
+        assert info.overall == "×"
+        assert "実績要件" in info.region_text
+
+    def test_multiple_delivery_record_required(self) -> None:
+        text = "2回以上の納品実績を有すること"
+        info = extract_eligibility(text, "東京都")
+        assert info.overall == "×"
+
+    def test_chiba_reversed_restriction(self) -> None:
+        text = "千葉県内に本社又は支店を有する事業者であること"
+        info = extract_eligibility(text, "千葉県山武市")
+        assert info.overall == "×"
+        assert info.region_ok is False
+
+    def test_chiba_full_form_restriction(self) -> None:
+        text = "千葉県に本社を有する事業者であること"
+        info = extract_eligibility(text, "千葉県")
+        assert info.overall == "×"
+        assert info.region_ok is False
+
+    def test_non_tokyo_org_no_description_is_uncertain(self) -> None:
+        """非東京地自体で説明文なし → 要確認（None）で○のまま"""
+        info = extract_eligibility("", "千葉県山武市")
+        assert info.overall == "○"
+        assert info.region_ok is None
