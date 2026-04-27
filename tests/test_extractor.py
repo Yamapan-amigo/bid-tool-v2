@@ -148,3 +148,17 @@ class TestOverallJudgment:
         info = extract_eligibility("", "千葉県山武市")
         assert info.overall == "○"
         assert info.region_ok is None
+
+    def test_experience_kisansite_pattern(self) -> None:
+        """公示日から起算して〇年以内に〇件以上の実績要件を検出"""
+        text = "語学研修を受託した実績が公示日から起算して5年以内に2件以上あること"
+        info = extract_eligibility(text, "独立行政法人国際交流基金")
+        assert info.region_ok is False
+        assert "実績要件" in info.region_text
+
+    def test_experience_uketotta_kensuu_pattern(self) -> None:
+        """受託した実績〇件以上パターンを検出"""
+        text = "同種業務を受託した実績を3件以上有すること"
+        info = extract_eligibility(text, "東京都")
+        assert info.region_ok is False
+        assert "実績要件" in info.region_text
