@@ -133,6 +133,46 @@ class TestCalculateScore:
         # base(3) + core(1) + tokyo(0.5) - proposal(1.5) = 3.0
         assert score == 3.0
 
+    def test_ineligible_forces_score_1(self) -> None:
+        """eligibility_overall=× は他の加点に関わらず強制的に1.0"""
+        p = BidProject(
+            title="広報誌印刷業務",
+            organization="東京都総務局",
+            bid_type="一般競争入札",
+            eligibility_overall="×",
+        )
+        assert calculate_score(p) == 1.0
+
+    def test_invalid_deadline_does_not_crash(self) -> None:
+        """不正な締切日形式はエラーを出さずスキップ"""
+        p = BidProject(
+            title="事務用品納入",
+            organization="東京都",
+            deadline="invalid-date",
+        )
+        score = calculate_score(p)
+        assert score == 3.5  # base(3) + tokyo(0.5)、締切ボーナスなし
+
+    def test_high_award_price_penalty(self) -> None:
+        """過去落札金額が300万超は減点"""
+        p = BidProject(
+            title="事務用品納入",
+            organization="神奈川県",
+            past_award_price=5_000_000,
+        )
+        score = calculate_score(p)
+        assert score == 2.0  # base(3) - price_penalty(1)
+
+    def test_target_award_price_bonus(self) -> None:
+        """50万〜150万の落札実績は加点"""
+        p = BidProject(
+            title="事務用品納入",
+            organization="神奈川県",
+            past_award_price=1_000_000,
+        )
+        score = calculate_score(p)
+        assert score == 4.0  # base(3) + price_bonus(1)
+
 
 # ============================================================
 # 重複排除テスト
