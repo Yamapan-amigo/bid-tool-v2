@@ -34,11 +34,10 @@ class TestFetchKkjProjects:
         with patch("src.sources.kkj._today_jst_date", return_value=date(2026, 4, 15)):
             projects = fetch_kkj_projects()
 
-        # 5件中: 東京(OK), 埼玉(OK), 中央省庁(除外:道路), 北海道(除外:地域外), 締切済(除外)
-        # → 2件が残る
-        assert len(projects) == 2
+        # 5件中: 東京(OK), 埼玉(除外:東京限定), 中央省庁(除外:道路), 北海道(除外:地域外), 締切済(除外)
+        # → 1件が残る
+        assert len(projects) == 1
         assert projects[0].title == "令和7年度 広報誌印刷業務"
-        assert projects[1].title == "パンフレット製本委託"
 
     @patch("src.sources.kkj.time.sleep")
     @patch("src.sources.kkj.requests.get")
