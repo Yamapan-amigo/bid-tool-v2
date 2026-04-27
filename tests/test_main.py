@@ -34,7 +34,7 @@ class TestRun:
             BidProject(
                 title="区報製本業務",
                 organization="新宿区",
-                bid_type="指名競争入札",
+                bid_type="一般競争入札",  # 指名競争入札はフィルタで除外されるため一般競争入札を使用
                 deadline="2099-12-31",
                 source="e-Tokyo",
             ),

@@ -39,6 +39,10 @@ def calculate_score(project: BidProject) -> float:
     if project.bid_type == "一般競争入札":
         score += 1.0
 
+    # プロポーザル・企画競争はハードルが高い（プレゼン等が必要、億単位になりやすい）
+    if project.bid_type in ("公募型プロポーザル", "企画競争"):
+        score -= 1.5
+
     # 東京都内ボーナス
     if "東京" in project.organization:
         score += 0.5

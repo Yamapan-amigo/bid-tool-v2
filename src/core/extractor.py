@@ -98,6 +98,29 @@ _REGION_AREA = re.compile(
 # 関東を含む地域名は参加OK
 _OK_AREA_KEYWORDS = {"関東", "関東・甲信越", "関東甲信越", "全国"}
 
+# 東京以外の地方自治体プレフィックス（これらが発注元の場合、制限テキスト不在でも要確認）
+_NON_TOKYO_PREFS = {
+    "千葉", "神奈川", "埼玉", "茨城", "群馬", "栃木",
+    "大阪", "愛知", "福岡", "北海道", "宮城", "広島",
+}
+
+# "千葉県に本社/本店を有する" "大阪府内に営業所を置く" パターン（逆順）
+_REGION_RESTRICT_REVERSED = re.compile(
+    r"((?:北海道|青森|岩手|宮城|秋田|山形|福島|茨城|栃木|群馬|埼玉|千葉|神奈川"
+    r"|新潟|富山|石川|福井|山梨|長野|岐阜|静岡|愛知|三重|滋賀|京都|大阪|兵庫|奈良"
+    r"|和歌山|鳥取|島根|岡山|広島|山口|徳島|香川|愛媛|高知|福岡|佐賀|長崎|熊本|大分"
+    r"|宮崎|鹿児島|沖縄)(?:都|府|県)?(?:内)?)"
+    r"\s*に.{0,5}?(?:本社|本店|営業所|支店|事業所|住所)\s*(?:を)?\s*(?:有する|置く|設置)"
+)
+
+# 実績要件パターン — これがあると新規事業者は参加不可
+_EXPERIENCE_REQUIRED = re.compile(
+    r"(?:過去|直近)\s*\d+\s*年(?:度)?\s*以内.{0,30}?"
+    r"(?:同種|同様|類似)?.{0,10}?(?:業務|役務|案件|契約|工事)\s*(?:の|を)?\s*(?:受注|納品|納入|履行|実施)\s*(?:実績|経験)"
+    r"|(?:\d+\s*回\s*以上\s*(?:の)?\s*(?:受注|納品|納入)\s*実績)"
+    r"|(?:受注(?:し|して)\s*(?:及び|かつ)?\s*納入?\s*した.{0,10}?実績)"
+)
+
 
 def _extract_region(text: str, organization: str) -> tuple[str, bool | None]:
     """地域要件を抽出する"""
@@ -112,11 +135,17 @@ def _extract_region(text: str, organization: str) -> tuple[str, bool | None]:
     m = _REGION_RESTRICT_SHORT.search(text)
     if m:
         prefix = m.group(1)
-        # 発注元の都道府県から判定
         for region in _OK_REGIONS:
             if region in organization:
                 return f"{prefix}（{organization}）", True
         return f"{prefix}限定", False
+
+    # 「千葉県に本社を有する」等の逆順パターン
+    m = _REGION_RESTRICT_REVERSED.search(text)
+    if m:
+        pref_name = m.group(1).rstrip("都府県内")
+        ok = pref_name in _OK_REGIONS
+        return f"{m.group(1)}限定", ok
 
     # 「関東地域」等の広域表現
     m = _REGION_AREA.search(text)
@@ -125,7 +154,12 @@ def _extract_region(text: str, organization: str) -> tuple[str, bool | None]:
         ok = any(kw in area for kw in _OK_AREA_KEYWORDS)
         return f"{area}地域", ok
 
-    # 地域制限の記載がない = 制限なし（国の機関に多い）
+    # 地域制限の記載がない場合:
+    # 非東京の地方自治体は仕様書PDFに制限が書かれていることが多い → 要確認
+    if any(pref in organization for pref in _NON_TOKYO_PREFS):
+        return "要確認（地元優先の可能性あり）", None
+
+    # 国の機関・東京都発注は制限なしと見なす
     return "制限なし", True
 
 
@@ -189,6 +223,12 @@ def extract_eligibility(text: str, organization: str) -> EligibilityInfo:
     region_text, region_ok = _extract_region(text, organization)
     submission_method = _extract_submission_method(text)
     contact = _extract_contact(text)
+
+    # 実績要件チェック（「過去〇年以内に受注実績」等がある場合は参加不可）
+    experience_required = bool(_EXPERIENCE_REQUIRED.search(text))
+    if experience_required:
+        region_ok = False
+        region_text = f"実績要件あり（受注実績が必要）" + (f"｜{region_text}" if region_text != "不明" else "")
 
     # 総合判定
     if d_grade_ok is False or region_ok is False:

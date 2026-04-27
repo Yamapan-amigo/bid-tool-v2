@@ -76,8 +76,18 @@ def filter_expired(projects: list[BidProject]) -> list[BidProject]:
     return filtered
 
 
+def filter_designated_bids(projects: list[BidProject]) -> list[BidProject]:
+    """指名競争入札は招待された業者のみ参加可能なため除外する"""
+    filtered = [p for p in projects if p.bid_type != "指名競争入札"]
+    removed = len(projects) - len(filtered)
+    if removed > 0:
+        logger.info("指名競争入札フィルタ: %d件除外 → %d件残り", removed, len(filtered))
+    return filtered
+
+
 def apply_filters(projects: list[BidProject]) -> list[BidProject]:
     """全フィルタを順に適用する"""
     result = filter_non_projects(projects)
     result = filter_expired(result)
+    result = filter_designated_bids(result)
     return result
