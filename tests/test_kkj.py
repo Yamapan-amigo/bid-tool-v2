@@ -49,13 +49,14 @@ class TestParseProject:
         assert project.deadline == "2026-04-30"
         assert project.source == "官公需"
 
-    def test_saitama_excluded_by_region(self) -> None:
-        """東京限定になったため埼玉県は除外される"""
+    def test_saitama_included_nationwide(self) -> None:
+        """全国対応に変更したため埼玉県の案件も取得される"""
         root = _load_fixture()
         items = _find_all_items(root)
         with patch("src.sources.kkj._today_jst_date", return_value=date(2026, 4, 15)):
             project = _parse_project(items[1])
-        assert project is None
+        assert project is not None
+        assert project.organization == "埼玉県教育委員会"
 
     def test_central_government_empty_prefecture(self) -> None:
         """PrefectureName空欄（中央省庁）は地域フィルタを通過する"""
@@ -66,8 +67,8 @@ class TestParseProject:
         # 道路が除外キーワードに含まれるため除外される
         assert project is None
 
-    def test_excluded_by_region(self) -> None:
-        """対象地域外（北海道）は除外される"""
+    def test_excluded_by_exclude_keywords(self) -> None:
+        """除外キーワード（清掃）を含む案件は除外される"""
         root = _load_fixture()
         items = _find_all_items(root)
         with patch("src.sources.kkj._today_jst_date", return_value=date(2026, 4, 15)):
