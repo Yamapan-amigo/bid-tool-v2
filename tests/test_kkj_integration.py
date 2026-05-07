@@ -6,17 +6,30 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src.sources.kkj import _build_date_range, fetch_kkj_projects
+from src.sources.kkj import _build_date_windows, fetch_kkj_projects
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "kkj_response.xml"
 
 
-class TestBuildDateRange:
-    def test_returns_date_format(self) -> None:
-        result = _build_date_range(30)
-        assert result.endswith("/")
-        # YYYY-MM-DD/ 形式
-        assert len(result) == 11
+class TestBuildDateWindows:
+    def test_returns_correct_window_count(self) -> None:
+        windows = _build_date_windows(total_days=90, window_size=10)
+        assert len(windows) == 9
+
+    def test_window_format(self) -> None:
+        windows = _build_date_windows(total_days=90, window_size=10)
+        for w in windows:
+            # YYYY-MM-DD/YYYY-MM-DD 形式
+            assert "/" in w
+            parts = w.split("/")
+            assert len(parts) == 2
+            assert len(parts[0]) == 10
+            assert len(parts[1]) == 10
+
+    def test_partial_days(self) -> None:
+        # 30日 ÷ 10日窓 = 3ウィンドウ
+        windows = _build_date_windows(total_days=30, window_size=10)
+        assert len(windows) == 3
 
 
 class TestFetchKkjProjects:

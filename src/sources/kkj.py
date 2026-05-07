@@ -35,10 +35,19 @@ logger = logging.getLogger(__name__)
 _JST = timezone(timedelta(hours=9))
 
 
-def _build_date_range(days: int = 30) -> str:
-    """直近N日間の日付範囲文字列を構築する（API用）"""
-    start = datetime.now() - timedelta(days=days)
-    return f"{start.strftime('%Y-%m-%d')}/"
+def _build_date_windows(total_days: int = 90, window_size: int = 10) -> list[str]:
+    """直近 total_days 日間を window_size 日ごとに分割した日付範囲リストを返す
+
+    1クエリあたりの結果が1,000件上限に当たらないよう窓を小さく保つ。
+    Returns: ["YYYY-MM-DD/YYYY-MM-DD", ...] の形式（新しい順）
+    """
+    now = datetime.now()
+    windows = []
+    for i in range(0, total_days, window_size):
+        end = now - timedelta(days=i)
+        start = now - timedelta(days=min(i + window_size, total_days))
+        windows.append(f"{start.strftime('%Y-%m-%d')}/{end.strftime('%Y-%m-%d')}")
+    return windows
 
 
 def _fetch_xml(keyword: str, category: str, date_range: str) -> ET.Element | None:
@@ -359,32 +368,33 @@ def _find_all_items(root: ET.Element) -> list[ET.Element]:
 
 
 def fetch_kkj_projects() -> list[BidProject]:
-    """官公需APIから印刷関連の入札案件を取得する
+    """官公需APIから入札案件を取得する
 
-    キーワード × カテゴリの組み合わせで複数回APIを呼び出し、
-    地域・除外・締切フィルタを適用して返す。
+    90日分を10日窓に分割してスライディング取得することで、
+    1,000件/クエリ上限の切り捨てを防ぎ、現在入札中の案件を網羅する。
     """
-    date_range = _build_date_range(30)
+    windows = _build_date_windows(total_days=90, window_size=10)
     all_projects: list[BidProject] = []
     seen_keys: set[str] = set()
 
-    for keyword in BROAD_KEYWORDS:
-        for category in KKJ_TARGET_CATEGORIES:
-            root = _fetch_xml(keyword, category, date_range)
-            if root is None:
-                continue
-
-            items = _find_all_items(root)
-            for item in items:
-                project = _parse_project(item)
-                if project is None:
+    for date_range in windows:
+        for keyword in BROAD_KEYWORDS:
+            for category in KKJ_TARGET_CATEGORIES:
+                root = _fetch_xml(keyword, category, date_range)
+                if root is None:
                     continue
 
-                if project.dedup_key not in seen_keys:
-                    seen_keys.add(project.dedup_key)
-                    all_projects.append(project)
+                items = _find_all_items(root)
+                for item in items:
+                    project = _parse_project(item)
+                    if project is None:
+                        continue
 
-            time.sleep(CRAWL.request_interval_sec)
+                    if project.dedup_key not in seen_keys:
+                        seen_keys.add(project.dedup_key)
+                        all_projects.append(project)
+
+                time.sleep(CRAWL.request_interval_sec)
 
     logger.info("官公需API: %d件取得（フィルタ済み）", len(all_projects))
     return all_projects
