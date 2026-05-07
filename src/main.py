@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import logging
 
+from src.config import MIN_SCORE_THRESHOLD
 from src.core.dedup import deduplicate
 from src.core.filter import apply_filters
 from src.core.matcher import match_past_results
@@ -104,6 +105,10 @@ def run(sources: list[str] | None = None) -> None:
 
     # スコア降順でソート
     scored.sort(key=lambda p: p.score, reverse=True)
+
+    # スコア閾値フィルタ（低スコア案件を除外してシートのノイズを削減）
+    scored = [p for p in scored if p.score >= MIN_SCORE_THRESHOLD]
+    logger.info("スコアフィルタ後: %d件（閾値 %.1f）", len(scored), MIN_SCORE_THRESHOLD)
 
     # === 6. Spreadsheet書き込み ===
     new_count = write_projects(scored)

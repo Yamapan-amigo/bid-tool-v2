@@ -18,13 +18,13 @@ import defusedxml.ElementTree as DefusedET
 import requests
 
 from src.config import (
+    BROAD_KEYWORDS,
     CRAWL,
     EXCLUDE_KEYWORDS,
     KKJ_API_URL,
     KKJ_PROCEDURE_TYPES,
     KKJ_SOURCE_NAME,
     KKJ_TARGET_CATEGORIES,
-    SEARCH_KEYWORDS,
     TARGET_PREFECTURES,
 )
 from src.core.categorizer import classify
@@ -47,7 +47,7 @@ def _fetch_xml(keyword: str, category: str, date_range: str) -> ET.Element | Non
         "Query": keyword,
         "Category": category,
         "CFT_Issue_Date": date_range,
-        "Count": "100",
+        "Count": "1000",
     }
 
     for attempt in range(CRAWL.retry_count + 1):
@@ -83,43 +83,8 @@ def _parse_project(item: ET.Element) -> BidProject | None:
     org = _text(item, "OrganizationName") or ""
     prefecture = _text(item, "PrefectureName") or ""
 
-    # 地域フィルタ: 対象都道府県 or 空欄（中央省庁）
-    if prefecture and not any(pref in prefecture for pref in TARGET_PREFECTURES):
-        return None
-
-    # D等級チェック（クライアント側）: Certificationフィールドがある場合のみ
-    cert = _text(item, "Certification") or ""
-    if cert and "D" not in cert.upper():
-        return None
-
-    # 案件名に検索キーワードのいずれかが含まれない場合は除外
-    # （APIは説明文中のヒットでもマッチを返すため、タイトルで最小限の再フィルタ）
-    _TITLE_KEYWORDS = [
-        *SEARCH_KEYWORDS,
-        # 歴史的に拾いたい追加語（SEARCH_KEYWORDS に含まれないもの）
-        "図書",
-        "インク",
-        "刷成",
-        "白書",
-        "概要",
-        "年報",
-        "複写",
-        "コピー",
-        "プリント",
-        "ノベルティ",
-        "グッズ",
-        "記念品",
-        "販促",
-        "Webサイト",
-        "動画",
-        "映像",
-        "バナー",
-        "デザイン",
-        "文房具",
-        "封入",
-        "梱包",
-    ]
-    if not any(kw in title for kw in _TITLE_KEYWORDS):
+    # 地域フィルタ: TARGET_PREFECTURES が空なら全国通過
+    if prefecture and TARGET_PREFECTURES and not any(pref in prefecture for pref in TARGET_PREFECTURES):
         return None
 
     # 除外キーワードチェック
@@ -403,7 +368,7 @@ def fetch_kkj_projects() -> list[BidProject]:
     all_projects: list[BidProject] = []
     seen_keys: set[str] = set()
 
-    for keyword in SEARCH_KEYWORDS:
+    for keyword in BROAD_KEYWORDS:
         for category in KKJ_TARGET_CATEGORIES:
             root = _fetch_xml(keyword, category, date_range)
             if root is None:

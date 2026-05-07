@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 
 from src.config import (
+    BROAD_KEYWORDS,
     CRAWL,
     ETOKYO_BASE_URL,
     ETOKYO_BID_TYPE_MAP,
@@ -24,18 +25,10 @@ from src.config import (
     ETOKYO_SOURCE_NAME,
     ETOKYO_WARD_CODES,
     EXCLUDE_KEYWORDS,
-    SEARCH_KEYWORDS,
 )
 from src.core.categorizer import classify
 from src.core.models import BidProject
 
-# e-Tokyo はタイトルのみで検索するため、タイトルにキーワードが含まれない案件は除外
-_ETOKYO_TITLE_KEYWORDS = [
-    *SEARCH_KEYWORDS,
-    "図書", "インク", "刷成", "白書", "概要", "年報", "複写", "コピー", "プリント",
-    "ノベルティ", "グッズ", "記念品", "販促", "Webサイト", "動画", "映像", "バナー",
-    "デザイン", "文房具", "封入", "梱包",
-]
 
 logger = logging.getLogger(__name__)
 
@@ -274,10 +267,6 @@ def _parse_project_row(row: Tag) -> BidProject | None:
     if case_id:
         detail_url = f"{ETOKYO_BASE_URL}?s=P002&a=12&n={case_id}"
 
-    # タイトルにキーワードが含まれない案件は除外（e-Tokyoは説明文でも検索ヒットするため）
-    if not any(kw in title for kw in _ETOKYO_TITLE_KEYWORDS):
-        return None
-
     # 除外キーワードチェック
     if any(kw in title for kw in EXCLUDE_KEYWORDS):
         return None
@@ -368,7 +357,7 @@ def fetch_etokyo_projects() -> list[BidProject]:
         seen_keys: set[str] = set()
         timeout_detected = False
 
-        for keyword in SEARCH_KEYWORDS:
+        for keyword in BROAD_KEYWORDS:
             logger.info("e-Tokyo: キーワード「%s」で検索中...", keyword)
             result = _search_keyword(session, keyword)
 
