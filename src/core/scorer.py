@@ -84,14 +84,14 @@ def calculate_score(project: BidProject) -> float:
         elif project.past_award_price < 300_000:
             score -= 0.5  # 小額すぎ（単価納品程度）
 
-    # 印刷関連キーワードが一切ない場合は最高3.8に制限（★★★に入れさせない）
+    # 印刷関連キーワードが一切ない場合はスコア上限2.5（MIN_SCORE_THRESHOLD未満でシート非表示）
     _has_print_keyword = (
         any(kw in title for kw in HIGH_VALUE_KEYWORDS)
         or any(kw in title for kw in MID_VALUE_KEYWORDS)
         or "印刷" in title
     )
     if not _has_print_keyword:
-        score = min(score, 3.8)
+        score = min(score, 2.5)
 
     # 参加不可（×）は強制的に1.0
     if project.eligibility_overall == "×":
