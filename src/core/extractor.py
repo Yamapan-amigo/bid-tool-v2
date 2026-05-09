@@ -79,6 +79,16 @@ def _extract_grade(text: str) -> tuple[str, bool | None]:
     if "全省庁統一資格" in text:
         return "不明（全省庁統一資格）", None
 
+    # 地方自治体の独自入札参加資格名簿（名簿登録要件）
+    if re.search(r"(?:物品|役務|工事)?(?:製造等|調達等)?\s*競争入札参加資格(?:の認定|者名簿)", text):
+        return "地方自治体独自名簿", None
+    if re.search(r"(?:本市|本区|本町|本村|本県|本府|本道)\s*(?:の)?\s*入札参加資格(?:者)?名簿", text):
+        return "地方自治体独自名簿", None
+
+    # 地方自治体施行令第167条参照（地方独自基準）
+    if re.search(r"施行令第\s*167\s*条", text):
+        return "地方自治体基準（施行令167条）", None
+
     return "不明", None
 
 
