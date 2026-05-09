@@ -13,6 +13,7 @@ import logging
 
 from src.config import MIN_SCORE_THRESHOLD
 from src.core.dedup import deduplicate
+from src.core.enricher import enrich_eligibility
 from src.core.filter import apply_filters
 from src.core.matcher import match_past_results
 from src.core.models import BidProject
@@ -80,15 +81,21 @@ def run(sources: list[str] | None = None) -> None:
 
     logger.info("取得合計: %d件", len(all_projects))
 
-    # === 2. フィルタ ===
+    # === 2. 等級・地域要件エンリッチ ===
+    try:
+        all_projects = enrich_eligibility(all_projects)
+    except Exception as e:
+        logger.warning("Enricherエラー（スキップ）: %s", _sanitize_error(e))
+
+    # === 3. フィルタ ===
     filtered = apply_filters(all_projects)
     logger.info("フィルタ後: %d件", len(filtered))
 
-    # === 3. 重複排除 ===
+    # === 4. 重複排除 ===
     unique = deduplicate(filtered)
     logger.info("重複排除後: %d件", len(unique))
 
-    # === 4. 過去落札金額マッチング ===
+    # === 5. 過去落札金額マッチング ===
     logger.info("=== 過去落札実績を取得中 ===")
     try:
         award_results = fetch_award_results()
@@ -100,7 +107,7 @@ def run(sources: list[str] | None = None) -> None:
         logger.warning("落札実績取得エラー（スキップ）: %s", _sanitize_error(e))
         matched = unique
 
-    # === 5. スコアリング ===
+    # === 6. スコアリング ===
     scored = score_projects(matched)
 
     # スコア降順でソート
@@ -115,7 +122,7 @@ def run(sources: list[str] | None = None) -> None:
     scored = [p for p in scored if p.eligibility_overall != "×"]
     logger.info("×案件除外: %d件 → シート書き込み対象 %d件", ineligible_count, len(scored))
 
-    # === 6. Spreadsheet書き込み ===
+    # === 7. Spreadsheet書き込み ===
     new_count = write_projects(scored)
     logger.info("=== 完了: %d件の新規案件を追加 ===", new_count)
 
