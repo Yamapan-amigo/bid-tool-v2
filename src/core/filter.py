@@ -9,6 +9,7 @@ import logging
 import re
 from datetime import datetime, timedelta, timezone
 
+from src.config import EXCLUDE_KEYWORDS
 from src.core.models import BidProject
 
 _JST = timezone(timedelta(hours=9))
@@ -87,9 +88,21 @@ def filter_designated_bids(projects: list[BidProject]) -> list[BidProject]:
     return filtered
 
 
+def filter_by_business_keywords(projects: list[BidProject]) -> list[BidProject]:
+    """業種不一致キーワードを含む案件を除外する"""
+    if not EXCLUDE_KEYWORDS:
+        return projects
+    filtered = [p for p in projects if not any(kw in p.title for kw in EXCLUDE_KEYWORDS)]
+    removed = len(projects) - len(filtered)
+    if removed > 0:
+        logger.info("業種フィルタ: %d件除外 → %d件残り", removed, len(filtered))
+    return filtered
+
+
 def apply_filters(projects: list[BidProject]) -> list[BidProject]:
     """全フィルタを順に適用する"""
     result = filter_non_projects(projects)
     result = filter_expired(result)
     result = filter_designated_bids(result)
+    result = filter_by_business_keywords(result)
     return result
