@@ -64,11 +64,12 @@ def _save_cache(cache: dict[str, str]) -> None:
     _CACHE_PATH.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def summarize_description(text: str, title: str) -> str:
+def summarize_description(text: str, title: str, cache_only: bool = False) -> str:
     """公告テキストをGemini Flashで要約する（キャッシュ付き）
 
     1回目: Gemini APIを呼んで要約 → キャッシュに保存
     2回目以降: キャッシュから即座に返す
+    cache_only=True の場合はキャッシュにある場合のみ返し、なければ空文字を返す
     """
     if not text:
         return title
@@ -78,6 +79,9 @@ def summarize_description(text: str, title: str) -> str:
     cache = _load_cache()
     if key in cache:
         return cache[key]
+
+    if cache_only:
+        return ""
 
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:

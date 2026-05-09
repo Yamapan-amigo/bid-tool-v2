@@ -28,8 +28,8 @@ class TestWriteProjects:
         """既存案件は書き込まれない"""
         mock_ws = MagicMock()
         mock_ws.get_all_values.return_value = [
-            ["取得日", "案件名", "発注元"],
-            ["2026-04-01", "印刷業務", "東京都"],  # 既存データ
+            ["取得日", "応募可否", "案件名", "発注元"],
+            ["2026-04-01", "○", "印刷業務", "東京都"],  # 既存データ
         ]
         mock_ss.return_value.worksheet.return_value = mock_ws
 

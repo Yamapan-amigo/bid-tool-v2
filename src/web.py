@@ -10,7 +10,7 @@ import html
 import json
 import logging
 import re
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 from src.core.dedup import deduplicate
@@ -33,13 +33,14 @@ _DATE_HIGHLIGHT = re.compile(r"(令和\s*\d+\s*年\s*\d+\s*月\s*\d+\s*日)")
 _PRICE_HIGHLIGHT = re.compile(r"([\d,]+\s*円)")
 
 
-def _extract_summary(text: str, title: str) -> str:
-    """公告テキストをGemini Flashで要約する"""
+def _extract_summary(text: str, title: str, cache_only: bool = False) -> str:
+    """公告テキストをGemini Flashで要約する（cache_only=True でキャッシュのみ使用）"""
     from src.core.summarizer import summarize_description
 
-    summary = summarize_description(text, title)
+    summary = summarize_description(text, title, cache_only=cache_only)
+    if not summary:
+        return ""
     escaped = html.escape(summary)
-    # Markdown太字 **text** → <strong>text</strong>
     escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
     return escaped.replace("\n", "<br>")
 
@@ -142,6 +143,7 @@ def _render_html(
 
         # 締切日までの残日数に応じたクラス
         deadline_class = ""
+        deadline_date = None
         if p.deadline:
             try:
                 deadline_date = datetime.strptime(p.deadline, "%Y-%m-%d").date()
@@ -153,6 +155,34 @@ def _render_html(
                     deadline_class = "deadline-urgent"
                 elif days_left <= 7:
                     deadline_class = "deadline-warn"
+
+        # 残日数バッジ
+        if deadline_date and deadline_date >= today:
+            dl = (deadline_date - today).days
+            if dl <= 3:
+                days_html = f'<span class="days-urgent">残{dl}日</span>'
+            elif dl <= 7:
+                days_html = f'<span class="days-warn">残{dl}日</span>'
+            elif dl <= 30:
+                days_html = f'<span class="days-ok">残{dl}日</span>'
+            else:
+                days_html = f'<span class="days-far">残{dl}日</span>'
+        else:
+            days_html = '<span class="days-unknown">-</span>'
+
+        # 提出方法ピル
+        method_raw = p.eligibility_method or ""
+        pills: list[str] = []
+        if "電子" in method_raw:
+            pills.append('<span class="pill-denshi">電子</span>')
+        if "郵便" in method_raw:
+            pills.append('<span class="pill-yubin">郵便</span>')
+        if "持参" in method_raw:
+            pills.append('<span class="pill-jisan">持参</span>')
+        method_pill = "".join(pills) if pills else '<span class="pill-unknown">不明</span>'
+
+        # data-deadline (空はソートで末尾に回す)
+        deadline_sort = p.deadline if p.deadline else "9999-99-99"
 
         # 公告日から3日以内なら新着バッジ
         new_badge = ""
@@ -175,20 +205,33 @@ def _render_html(
             data-score="{p.score}"
             data-elig="{p.eligibility_overall}"
             data-category="{html.escape(p.category)}"
-            data-org="{html.escape(p.organization)}">
+            data-org="{html.escape(p.organization)}"
+            data-deadline="{deadline_sort}">
           <td class="row-num" data-label="#">{i}</td>
           <td class="{elig_class}" data-label="可否">{p.eligibility_overall}</td>
           <td class="title" data-label="案件名">{html.escape(p.title)}{new_badge}</td>
           <td data-label="発注元">{html.escape(p.organization)}</td>
+          <td data-label="残日数">{days_html}</td>
+          <td data-label="提出方法">{method_pill}</td>
           <td data-label="分類">{html.escape(p.category)}</td>
           <td data-label="入札方式">{html.escape(p.bid_type)}</td>
-          <td data-label="公告日">{p.publish_date}</td>
           <td class="{deadline_class}" data-label="締切日">{deadline_display}</td>
           <td class="{score_class}" data-label="おすすめ">{score_label}</td>
         </tr>"""
 
-    high_score = sum(1 for p in projects if p.score >= 4.0)
-    general_bid = sum(1 for p in projects if p.bid_type == "一般競争入札")
+    count_ok = sum(1 for p in projects if p.eligibility_overall == "◎")
+    count_check = sum(1 for p in projects if p.eligibility_overall == "○")
+    count_ng = sum(1 for p in projects if p.eligibility_overall == "×")
+    count_urgent = 0
+    for p in projects:
+        if p.eligibility_overall == "×" or not p.deadline:
+            continue
+        try:
+            d = datetime.strptime(p.deadline, "%Y-%m-%d").date()
+            if (d - today).days <= 7:
+                count_urgent += 1
+        except ValueError:
+            pass
 
     # フィルタ選択肢: 入札方式
     bid_types = sorted({p.bid_type for p in projects})
@@ -222,7 +265,7 @@ def _render_html(
                 "spec_url": p.spec_url,
                 "source": p.source,
                 "score": p.score,
-                "summary": _extract_summary(p.description, p.title),
+                "summary": _extract_summary(p.description, p.title, cache_only=True),
                 "description": desc,
                 "past_price": (
                     f"{p.past_award_price:,}円" if p.past_award_price else ""
@@ -243,7 +286,7 @@ def _render_html(
                 "elig_contact": p.eligibility_contact,
             }
         )
-    details_json = json.dumps(details_data, ensure_ascii=False)
+    details_json = json.dumps(details_data, ensure_ascii=True)
 
     return f"""<!DOCTYPE html>
 <html lang="ja">
@@ -294,6 +337,25 @@ def _render_html(
   .deadline-urgent {{ color: #d32f2f; font-weight: 700; }}
   .deadline-warn {{ color: #e65100; font-weight: 600; }}
   .badge-new {{ display: inline-block; background: #1a73e8; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; margin-left: 6px; vertical-align: middle; letter-spacing: 0.5px; }}
+
+  /* === 残日数バッジ === */
+  .days-urgent {{ display: inline-block; background: #d32f2f; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }}
+  .days-warn {{ display: inline-block; background: #e65100; color: #fff; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }}
+  .days-ok {{ display: inline-block; color: #555; font-size: 12px; white-space: nowrap; }}
+  .days-far {{ display: inline-block; color: #aaa; font-size: 12px; white-space: nowrap; }}
+  .days-unknown {{ display: inline-block; color: #ccc; font-size: 11px; }}
+
+  /* === 提出方法ピル === */
+  .pill-denshi {{ display: inline-block; background: #1565c0; color: #fff; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 10px; white-space: nowrap; }}
+  .pill-yubin {{ display: inline-block; background: #2e7d32; color: #fff; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 10px; white-space: nowrap; }}
+  .pill-jisan {{ display: inline-block; background: #6a1b9a; color: #fff; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 10px; white-space: nowrap; }}
+  .pill-unknown {{ display: inline-block; background: #bbb; color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 10px; white-space: nowrap; }}
+
+  /* === statsカード色 === */
+  .stat-ok .number {{ color: #2e7d32 !important; }}
+  .stat-check .number {{ color: #f57f17 !important; }}
+  .stat-urgent .number {{ color: #d32f2f !important; }}
+  .stat-ng .number {{ color: #bbb !important; font-size: 20px !important; }}
 
   /* === モーダル === */
   .overlay {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }}
@@ -415,20 +477,24 @@ def _render_html(
   </div>
 
   <div class="stats">
-    <div class="stat-card">
-      <div class="number">{len(projects)}</div>
-      <div class="label">公募中案件</div>
+    <div class="stat-card stat-ok">
+      <div class="number">{count_ok}</div>
+      <div class="label">◎ 今すぐ応募可</div>
+    </div>
+    <div class="stat-card stat-check">
+      <div class="number">{count_check}</div>
+      <div class="label">○ 要確認</div>
+    </div>
+    <div class="stat-card stat-urgent">
+      <div class="number">{count_urgent}</div>
+      <div class="label">今週締切（7日以内）</div>
+    </div>
+    <div class="stat-card stat-ng">
+      <div class="number">{count_ng}</div>
+      <div class="label">× NG（除外済み）</div>
     </div>
     <div class="stat-card">
-      <div class="number">{general_bid}</div>
-      <div class="label">一般競争入札</div>
-    </div>
-    <div class="stat-card">
-      <div class="number">{high_score}</div>
-      <div class="label">おすすめ案件</div>
-    </div>
-    <div class="stat-card">
-      <div class="number" id="filtered-count">{len(projects)}</div>
+      <div class="number" id="filtered-count">{count_ok + count_check}</div>
       <div class="label">表示中</div>
     </div>
   </div>
@@ -438,8 +504,8 @@ def _render_html(
       <div class="filter-group">
         <label>参加可否</label>
         <select id="filter-elig" onchange="applyFilters()">
-          <option value="◎○" selected>◎○ 参加可能のみ</option>
-          <option value="◎">◎ のみ</option>
+          <option value="◎">◎ 確定のみ（推奨）</option>
+          <option value="◎○">◎○ 参加可能のみ</option>
           <option value="">すべて（×含む）</option>
         </select>
       </div>
@@ -460,7 +526,7 @@ def _render_html(
       <div class="filter-group">
         <label>おすすめ度</label>
         <select id="filter-score" onchange="applyFilters()">
-          <option value="">すべて</option>
+          <option value="" selected>すべて</option>
           <option value="4.5">&#9733;&#9733;&#9733; のみ</option>
           <option value="3.5">&#9733;&#9733; 以上</option>
         </select>
@@ -479,9 +545,10 @@ def _render_html(
           <th>可否</th>
           <th>案件名</th>
           <th>発注元</th>
+          <th class="sortable" onclick="sortBy('deadline')">残日数</th>
+          <th>提出方法</th>
           <th class="sortable" onclick="sortBy('category')">分類</th>
           <th>入札方式</th>
-          <th>公告日</th>
           <th>締切日</th>
           <th>おすすめ度</th>
         </tr>
@@ -622,8 +689,13 @@ function showDetail(idx) {{
   document.getElementById('modal-elig-method').textContent = d.elig_method || '不明';
   document.getElementById('modal-elig-contact').textContent = d.elig_contact || '';
 
-  // 概要
-  document.getElementById('modal-summary').innerHTML = d.summary || '概要を抽出できませんでした';
+  // 概要（キャッシュあり → 即表示、なし → 生成ボタン）
+  const summaryEl = document.getElementById('modal-summary');
+  if (d.summary) {{
+    summaryEl.innerHTML = d.summary;
+  }} else {{
+    summaryEl.innerHTML = '<button onclick="loadSummary(' + idx + ')" style="padding:8px 16px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">AI要約を生成</button>';
+  }}
 
   // 全文（折りたたみ）
   const descEl = document.getElementById('modal-desc');
@@ -712,12 +784,26 @@ function applyFilters() {{
 }}
 
 function resetFilters() {{
-  document.getElementById('filter-elig').value = '◎○';
+  document.getElementById('filter-elig').value = '◎';
   document.getElementById('filter-bid-type').value = '';
   document.getElementById('filter-category').value = '';
   document.getElementById('filter-score').value = '';
   document.getElementById('filter-keyword').value = '';
-  applyFilters();
+  sortBy('score'); sortBy('score');  // スコア降順に戻す
+}}
+
+function loadSummary(idx) {{
+  const summaryEl = document.getElementById('modal-summary');
+  summaryEl.innerHTML = '<span style="color:#888;font-size:13px">AI要約を生成中...</span>';
+  fetch('/api/summary?idx=' + idx)
+    .then(r => r.json())
+    .then(data => {{
+      details[idx].summary = data.summary;
+      summaryEl.innerHTML = data.summary || '<span style="color:#aaa">要約を生成できませんでした</span>';
+    }})
+    .catch(() => {{
+      summaryEl.innerHTML = '<span style="color:#d32f2f">要約の取得に失敗しました</span>';
+    }});
 }}
 
 let _sortAsc = {{}};
@@ -737,8 +823,12 @@ function sortBy(key) {{
   applyFilters();
 }}
 
-// 初期表示時にフィルタを適用（×を非表示）
-document.addEventListener('DOMContentLoaded', applyFilters);
+// 初期表示: ◎のみ + スコア降順（おすすめ上位から表示）
+document.addEventListener('DOMContentLoaded', function() {{
+  document.getElementById('filter-elig').value = '◎';
+  sortBy('score');  // 1回目: 昇順
+  sortBy('score');  // 2回目: 降順（高スコア上位から）
+}});
 </script>
 </body>
 </html>"""
@@ -746,12 +836,39 @@ document.addEventListener('DOMContentLoaded', applyFilters);
 
 class Handler(SimpleHTTPRequestHandler):
     html_content: str = ""
+    projects: list[BidProject] = []
 
     def do_GET(self) -> None:
+        if self.path.startswith("/api/summary"):
+            self._handle_summary()
+            return
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
         self.wfile.write(self.html_content.encode("utf-8"))
+
+    def _handle_summary(self) -> None:
+        from urllib.parse import parse_qs, urlparse
+
+        params = parse_qs(urlparse(self.path).query)
+        try:
+            idx = int(params.get("idx", [-1])[0])
+        except (ValueError, IndexError):
+            idx = -1
+
+        if idx < 0 or idx >= len(Handler.projects):
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        p = Handler.projects[idx]
+        summary_html = _extract_summary(p.description, p.title, cache_only=False)
+        body = json.dumps({"summary": summary_html}, ensure_ascii=True).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def log_message(self, format: str, *args: object) -> None:
         pass
@@ -793,6 +910,7 @@ def serve(port: int = 8080) -> None:
     logger.info("完了: %d件の案件を取得", len(projects))
 
     Handler.html_content = _render_html(projects, raw_count, award_count, matched_count)
+    Handler.projects = projects
 
     server = HTTPServer(("localhost", port), Handler)
     logger.info("ブラウザで確認: http://localhost:%d", port)

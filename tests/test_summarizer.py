@@ -7,9 +7,7 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from src.core.summarizer import summarize_description, _cache_key, _load_cache, _save_cache
+from src.core.summarizer import _cache_key, _load_cache, summarize_description
 
 
 class TestCacheKey:

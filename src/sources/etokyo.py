@@ -29,7 +29,6 @@ from src.config import (
 from src.core.categorizer import classify
 from src.core.models import BidProject
 
-
 logger = logging.getLogger(__name__)
 
 # ============================================================

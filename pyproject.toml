@@ -32,6 +32,14 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
 
+[tool.ruff.lint.per-file-ignores]
+"src/web.py" = ["E501"]
+"src/core/extractor.py" = ["E501"]
+"src/core/summarizer.py" = ["E501"]
+"src/sources/kkj.py" = ["E501"]
+"tests/test_filter.py" = ["E501"]
+"tests/test_kkj_integration.py" = ["E501"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

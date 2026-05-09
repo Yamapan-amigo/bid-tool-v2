@@ -47,21 +47,36 @@ class BidProject:
         return replace(self, past_award_price=price, past_award_winner=winner)
 
     def to_row(self, fetch_date: str) -> list[str]:
-        """Spreadsheet書き込み用の行データに変換する"""
+        """Spreadsheet書き込み用の行データに変換する（20列）"""
+        from datetime import date as date_cls
+
         price_str = f"{self.past_award_price:,}" if self.past_award_price is not None else ""
+        days_left = ""
+        if self.deadline:
+            try:
+                days_left = str((date_cls.fromisoformat(self.deadline) - date_cls.today()).days)
+            except ValueError:
+                pass
         return [
             fetch_date,
+            self.eligibility_overall,
             self.title,
             self.organization,
+            self.category,
             self.bid_type,
             self.publish_date,
             self.deadline,
+            days_left,
+            self.eligibility_grade,
+            self.eligibility_region,
+            self.eligibility_method,
             price_str,
             self.past_award_winner,
+            self.spec_url,
             self.detail_url,
             self.source,
             str(self.score),
-            "",  # メモ（ユーザー入力）
+            "",        # メモ（ユーザー入力）
             "未確認",  # ステータス
         ]
 
