@@ -96,7 +96,8 @@ class TestCalculateScore:
             bid_type="一般競争入札",
         )
         score = calculate_score(p)
-        assert score == 4.0  # base(3) + bid(1)
+        # base(3) + bid(1) = 4.0 → 印刷キーワードなしでcap 3.8
+        assert score == 3.8
 
     def test_tokyo_bonus(self) -> None:
         p = BidProject(title="事務用品納入", organization="東京都総務局")
@@ -130,8 +131,8 @@ class TestCalculateScore:
             bid_type="公募型プロポーザル",
         )
         score = calculate_score(p)
-        # base(3) + core(1) + tokyo(0.5) - proposal(1.5) = 3.0
-        assert score == 3.0
+        # base(3) + high_kw(広報誌=2) + tokyo(0.5) - proposal(1.5) = 4.0
+        assert score == 4.0
 
     def test_ineligible_forces_score_1(self) -> None:
         """eligibility_overall=× は他の加点に関わらず強制的に1.0"""
@@ -154,24 +155,25 @@ class TestCalculateScore:
         assert score == 3.5  # base(3) + tokyo(0.5)、締切ボーナスなし
 
     def test_high_award_price_penalty(self) -> None:
-        """過去落札金額が300万超は減点"""
+        """過去落札金額が300万超はスコア上限1.5に打ち切り"""
         p = BidProject(
             title="事務用品納入",
             organization="神奈川県",
             past_award_price=5_000_000,
         )
         score = calculate_score(p)
-        assert score == 2.0  # base(3) - price_penalty(1)
+        assert score == 1.5  # base(3) → min(3.0, 1.5) = 1.5 (高額打ち切り)
 
     def test_target_award_price_bonus(self) -> None:
-        """50万〜150万の落札実績は加点"""
+        """50万〜150万の落札実績は強ボーナス+1.5"""
         p = BidProject(
-            title="事務用品納入",
+            title="封筒印刷購入",
             organization="神奈川県",
             past_award_price=1_000_000,
         )
         score = calculate_score(p)
-        assert score == 4.0  # base(3) + price_bonus(1)
+        # base(3) + mid_kw(封筒=1.0) + price_bonus(1.5) = 5.5 → capped 5.0
+        assert score == 5.0
 
 
 # ============================================================
@@ -235,13 +237,14 @@ class TestBidProject:
         )
         row = p.to_row("2026-04-01")
         assert row[0] == "2026-04-01"  # 取得日
-        assert row[1] == "印刷業務"  # 案件名
-        assert row[2] == "東京都"  # 発注元
-        assert row[6] == ""  # 過去落札金額（未設定）
-        assert row[7] == ""  # 過去落札者（未設定）
-        assert row[10] == "4.5"  # スコア
-        assert row[12] == "未確認"  # ステータス
-        assert len(row) == 13  # 13列
+        assert row[1] == "○"           # 応募可否
+        assert row[2] == "印刷業務"    # 案件名
+        assert row[3] == "東京都"      # 発注元
+        assert row[12] == ""           # 過去落札金額（未設定）
+        assert row[13] == ""           # 過去落札者（未設定）
+        assert row[17] == "4.5"        # スコア
+        assert row[19] == "未確認"     # ステータス
+        assert len(row) == 20          # 20列
 
     def test_to_row_with_past_award(self) -> None:
         p = BidProject(
@@ -252,5 +255,5 @@ class TestBidProject:
             past_award_winner="株式会社テスト印刷",
         )
         row = p.to_row("2026-04-01")
-        assert row[6] == "1,000,000"  # 過去落札金額
-        assert row[7] == "株式会社テスト印刷"  # 過去落札者
+        assert row[12] == "1,000,000"          # 過去落札金額
+        assert row[13] == "株式会社テスト印刷"  # 過去落札者

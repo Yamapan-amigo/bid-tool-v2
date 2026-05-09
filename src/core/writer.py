@@ -98,7 +98,7 @@ def write_projects(projects: list[BidProject]) -> int:
     ws = _get_or_create_sheet(ss, SHEET_PROJECTS, PROJECT_HEADERS)
     # 既存キーをインラインで取得（二重接続を回避）
     rows = ws.get_all_values()
-    existing_keys: set[str] = {f"{r[1]}|{r[2]}" for r in rows[1:] if len(r) >= 3}
+    existing_keys: set[str] = {f"{r[2]}|{r[3]}" for r in rows[1:] if len(r) >= 4}
     today = datetime.now().strftime("%Y-%m-%d")
 
     new_rows: list[list[str]] = []

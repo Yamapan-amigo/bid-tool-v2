@@ -110,6 +110,11 @@ def run(sources: list[str] | None = None) -> None:
     scored = [p for p in scored if p.score >= MIN_SCORE_THRESHOLD]
     logger.info("スコアフィルタ後: %d件（閾値 %.1f）", len(scored), MIN_SCORE_THRESHOLD)
 
+    # ×案件（応募不可）をシートから除外（Web UIには残す）
+    ineligible_count = sum(1 for p in scored if p.eligibility_overall == "×")
+    scored = [p for p in scored if p.eligibility_overall != "×"]
+    logger.info("×案件除外: %d件 → シート書き込み対象 %d件", ineligible_count, len(scored))
+
     # === 6. Spreadsheet書き込み ===
     new_count = write_projects(scored)
     logger.info("=== 完了: %d件の新規案件を追加 ===", new_count)

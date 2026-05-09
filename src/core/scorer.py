@@ -6,34 +6,47 @@ AIを使わず、キーワードマッチング + 入札方式 + 地域 + 締切
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from src.config import (
     AWARD_PRICE_TARGET_MAX,
     AWARD_PRICE_TARGET_MIN,
-    CORE_KEYWORDS,
+    HIGH_VALUE_KEYWORDS,
+    MID_VALUE_KEYWORDS,
     SCORE_PENALTY_KEYWORDS,
 )
 from src.core.models import BidProject
+
+_JST = timezone(timedelta(hours=9))
 
 
 def calculate_score(project: BidProject) -> float:
     """案件のスコアを計算する（1.0〜5.0）
 
-    ルール:
-    - base = 3.0
-    - コアキーワード(印刷,製本,冊子,広報誌) in 案件名: +1
-    - 入札方式 == 一般競争入札: +1
-    - 発注元に東京が含まれる: +0.5
-    - 締切まで7日以上: +0.5
-    - 除外ワード(システム,工事,清掃) in 案件名: -2
+    キーワード3段階:
+    - 広報誌・チラシ等の印刷物本体: +2.0
+    - 製本・冊子・封筒等の関連物: +1.0
+    - 「印刷」単独のみ: +0.3
+    その他加点:
+    - 一般競争入札: +1.0
+    - 東京都内: +0.5
+    - 締切7日以上: +0.5
+    - 狙い目金額帯(50〜150万): +1.5
+    減点:
+    - プロポーザル/企画競争: -1.5
+    - 除外ワード(システム,工事,清掃): -2.0
+    - 高額案件(300万超): スコア上限1.5に打ち切り
     """
     score = 3.0
     title = project.title
 
-    # コアキーワードボーナス
-    if any(kw in title for kw in CORE_KEYWORDS):
+    # キーワード3段階ボーナス（最初にマッチした段階のみ加算）
+    if any(kw in title for kw in HIGH_VALUE_KEYWORDS):
+        score += 2.0
+    elif any(kw in title for kw in MID_VALUE_KEYWORDS):
         score += 1.0
+    elif "印刷" in title:
+        score += 0.3
 
     # 一般競争入札ボーナス
     if project.bid_type == "一般競争入札":
@@ -43,15 +56,16 @@ def calculate_score(project: BidProject) -> float:
     if project.bid_type in ("公募型プロポーザル", "企画競争"):
         score -= 1.5
 
-    # 東京都内ボーナス
-    if "東京" in project.organization:
+    # 東京エリアボーナス（東京都直轄 or e-Tokyo=23区・市部）
+    _is_tokyo = "東京" in project.organization or project.source == "e-Tokyo"
+    if _is_tokyo:
         score += 0.5
 
     # 締切まで7日以上ボーナス
     if project.deadline:
         try:
             deadline_date = datetime.strptime(project.deadline, "%Y-%m-%d")
-            days_left = (deadline_date - datetime.now()).days
+            days_left = (deadline_date - datetime.now(_JST).replace(tzinfo=None)).days
             if days_left >= 7:
                 score += 0.5
         except ValueError:
@@ -64,9 +78,20 @@ def calculate_score(project: BidProject) -> float:
     # 過去落札金額ボーナス/ペナルティ
     if project.past_award_price is not None:
         if AWARD_PRICE_TARGET_MIN <= project.past_award_price <= AWARD_PRICE_TARGET_MAX:
-            score += 1.0  # 狙い目の金額帯
+            score += 1.5  # 狙い目の金額帯（強ボーナス）
         elif project.past_award_price > 3_000_000:
-            score -= 1.0  # 高額案件は回避
+            score = min(score, 1.5)  # 高額案件は上限打ち切り（手に負えないサイズ）
+        elif project.past_award_price < 300_000:
+            score -= 0.5  # 小額すぎ（単価納品程度）
+
+    # 印刷関連キーワードが一切ない場合は最高3.8に制限（★★★に入れさせない）
+    _has_print_keyword = (
+        any(kw in title for kw in HIGH_VALUE_KEYWORDS)
+        or any(kw in title for kw in MID_VALUE_KEYWORDS)
+        or "印刷" in title
+    )
+    if not _has_print_keyword:
+        score = min(score, 3.8)
 
     # 参加不可（×）は強制的に1.0
     if project.eligibility_overall == "×":

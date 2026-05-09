@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from src.core.models import BidProject
+
+_JST = timezone(timedelta(hours=9))
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +65,7 @@ def filter_non_projects(projects: list[BidProject]) -> list[BidProject]:
 
 def filter_expired(projects: list[BidProject]) -> list[BidProject]:
     """締切日が過ぎた案件を除外する"""
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(_JST).strftime("%Y-%m-%d")
     filtered = []
     for p in projects:
         if p.deadline and p.deadline < today:
