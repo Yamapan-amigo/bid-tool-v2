@@ -247,10 +247,11 @@ def _render_html(
         for c in categories
     )
 
-    # 詳細データをJSONとして埋め込む
+    # 詳細データをJSONとして埋め込む（説明文は500文字に切り詰めてHTML肥大化を防ぐ）
+    _DESC_MAX = 500
     details_data = []
     for p in projects:
-        desc = _format_description(p.description) if p.description else ""
+        desc = _format_description(p.description[:_DESC_MAX]) if p.description else ""
 
         link_url = p.detail_url
 
@@ -286,7 +287,9 @@ def _render_html(
                 "elig_contact": p.eligibility_contact,
             }
         )
-    details_json = json.dumps(details_data, ensure_ascii=True)
+    # </script> が JSON内に現れるとscriptタグが早期終了するため \/ にエスケープ
+    # ensure_ascii=False で日本語を\uXXXXに変換せずサイズを抑える
+    details_json = json.dumps(details_data, ensure_ascii=False).replace("</", "<\\/")
 
     return f"""<!DOCTYPE html>
 <html lang="ja">
