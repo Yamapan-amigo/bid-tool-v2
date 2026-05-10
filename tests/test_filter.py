@@ -82,7 +82,9 @@ class TestCalculateScore:
     def test_base_score(self) -> None:
         p = BidProject(title="事務用品納入", organization="神奈川県")
         score = calculate_score(p)
-        assert score == 2.5  # 印刷キーワードなし → cap 2.5
+        # デフォルトcategory="その他"（未分類）→対象外キャップ非適用
+        # 印刷キーワードなし→cap 2.5
+        assert score == 2.5
 
     def test_core_keyword_bonus(self) -> None:
         p = BidProject(title="広報誌印刷業務", organization="神奈川県")
@@ -96,13 +98,14 @@ class TestCalculateScore:
             bid_type="一般競争入札",
         )
         score = calculate_score(p)
-        # base(3) + bid(1) = 4.0 → 印刷キーワードなしでcap 2.5
+        # base(3) + bid(1) = 4.0 → 印刷キーワードなしでcap 2.5（その他は対象外キャップ非適用）
         assert score == 2.5
 
     def test_tokyo_bonus(self) -> None:
         p = BidProject(title="事務用品納入", organization="東京都総務局")
         score = calculate_score(p)
-        assert score == 2.5  # base(3) + tokyo(0.5) → cap 2.5（印刷キーワードなし）
+        # base(3) + tokyo(0.5) → 印刷キーワードなしcap 2.5（その他は対象外キャップ非適用）
+        assert score == 2.5
 
     def test_penalty_keyword(self) -> None:
         p = BidProject(title="情報システム開発業務", organization="東京都")

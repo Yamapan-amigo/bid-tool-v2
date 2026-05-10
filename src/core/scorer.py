@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from src.config import (
     AWARD_PRICE_TARGET_MAX,
     AWARD_PRICE_TARGET_MIN,
+    COMPANY_TARGET_CATEGORIES,
     HIGH_VALUE_KEYWORDS,
     MID_VALUE_KEYWORDS,
     SCORE_PENALTY_KEYWORDS,
@@ -83,6 +84,12 @@ def calculate_score(project: BidProject) -> float:
             score = min(score, 1.5)  # 高額案件は上限打ち切り（手に負えないサイズ）
         elif project.past_award_price < 300_000:
             score -= 0.5  # 小額すぎ（単価納品程度）
+
+    # 対象外カテゴリはスコア上限1.5（MIN_SCORE_THRESHOLD=3.0未満で実質非表示）
+    # 「その他」（未分類）は対象外ではなく、印刷キーワードなし→cap 2.5で制御
+    # 誤分類による見落としを防ぐため完全除外ではなくスコア制限で対応
+    if project.category and project.category != "その他" and project.category not in COMPANY_TARGET_CATEGORIES:
+        score = min(score, 1.5)
 
     # 印刷関連キーワードが一切ない場合はスコア上限2.5（MIN_SCORE_THRESHOLD未満でシート非表示）
     _has_print_keyword = (
