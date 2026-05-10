@@ -13,6 +13,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
+from src.config import CATEGORY_GROUPS
 from src.core.dedup import deduplicate
 from src.core.filter import apply_filters
 from src.core.matcher import match_past_results
@@ -240,12 +241,21 @@ def _render_html(
         for bt in bid_types
     )
 
-    # フィルタ選択肢: 分類
+    # フィルタ選択肢: 分類（グループ + 個別カテゴリのoptgroup構造）
     categories = sorted({p.category for p in projects})
-    category_options = "".join(
+    group_options = "".join(
+        f'<option value="group:{html.escape(k)}">&#9733; {html.escape(k)}</option>'
+        for k in CATEGORY_GROUPS
+    )
+    individual_options = "".join(
         f'<option value="{html.escape(c)}">{html.escape(c)}</option>'
         for c in categories
     )
+    category_options = (
+        f'<optgroup label="まとめて選択">{group_options}</optgroup>'
+        f'<optgroup label="個別カテゴリ">{individual_options}</optgroup>'
+    )
+    groups_json = json.dumps(CATEGORY_GROUPS, ensure_ascii=False).replace("</", "<\\/")
 
     # 詳細データをJSONとして埋め込む（説明文は500文字に切り詰めてHTML肥大化を防ぐ）
     _DESC_MAX = 500
@@ -359,6 +369,10 @@ def _render_html(
   .stat-check .number {{ color: #f57f17 !important; }}
   .stat-urgent .number {{ color: #d32f2f !important; }}
   .stat-ng .number {{ color: #bbb !important; font-size: 20px !important; }}
+
+  /* === ヒーロー: 今すぐ応募可を大型表示 === */
+  .hero-go-card {{ border: 2px solid #2e7d32 !important; background: #f1f8f1 !important; }}
+  .hero-go-number {{ font-size: 52px !important; font-weight: 800 !important; line-height: 1 !important; }}
 
   /* === モーダル === */
   .overlay {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }}
@@ -480,8 +494,8 @@ def _render_html(
   </div>
 
   <div class="stats">
-    <div class="stat-card stat-ok">
-      <div class="number">{count_ok}</div>
+    <div class="stat-card stat-ok hero-go-card">
+      <div class="number hero-go-number">{count_ok}</div>
       <div class="label">◎ 今すぐ応募可</div>
     </div>
     <div class="stat-card stat-check">
@@ -669,6 +683,7 @@ def _render_html(
 
 <script>
 const details = {details_json};
+const CATEGORY_GROUPS = {groups_json};
 
 function showDetail(idx) {{
   const d = details[idx];
@@ -759,9 +774,21 @@ document.addEventListener('keydown', function(e) {{
 function applyFilters() {{
   const eligFilter = document.getElementById('filter-elig').value;
   const bidType = document.getElementById('filter-bid-type').value;
-  const category = document.getElementById('filter-category').value;
+  const categoryRaw = document.getElementById('filter-category').value;
   const minScore = parseFloat(document.getElementById('filter-score').value) || 0;
   const keyword = document.getElementById('filter-keyword').value.toLowerCase();
+
+  // グループ選択（group:プレフィクス）と個別選択を区別
+  let catOk;
+  if (!categoryRaw) {{
+    catOk = () => true;
+  }} else if (categoryRaw.startsWith('group:')) {{
+    const allowed = new Set(CATEGORY_GROUPS[categoryRaw.slice(6)] || []);
+    catOk = (rc) => allowed.has(rc);
+  }} else {{
+    catOk = (rc) => rc === categoryRaw;
+  }}
+
   const rows = document.querySelectorAll('tbody tr');
   let visible = 0;
   let num = 1;
@@ -774,7 +801,7 @@ function applyFilters() {{
     const eligOk = !eligFilter || (eligFilter === '◎' ? rElig === '◎' : rElig !== '×');
     const show = eligOk
       && (!bidType || rBid === bidType)
-      && (!category || rCategory === category)
+      && catOk(rCategory)
       && rScore >= minScore
       && (!keyword || rText.includes(keyword));
     row.style.display = show ? '' : 'none';
@@ -789,7 +816,7 @@ function applyFilters() {{
 function resetFilters() {{
   document.getElementById('filter-elig').value = '◎';
   document.getElementById('filter-bid-type').value = '';
-  document.getElementById('filter-category').value = '';
+  document.getElementById('filter-category').value = 'group:印刷業種すべて';
   document.getElementById('filter-score').value = '';
   document.getElementById('filter-keyword').value = '';
   sortBy('score'); sortBy('score');  // スコア降順に戻す
@@ -826,9 +853,10 @@ function sortBy(key) {{
   applyFilters();
 }}
 
-// 初期表示: ◎のみ + スコア降順（おすすめ上位から表示）
+// 初期表示: ◎のみ + 印刷業種すべて + スコア降順（大島さん向けデフォルト）
 document.addEventListener('DOMContentLoaded', function() {{
   document.getElementById('filter-elig').value = '◎';
+  document.getElementById('filter-category').value = 'group:印刷業種すべて';
   sortBy('score');  // 1回目: 昇順
   sortBy('score');  // 2回目: 降順（高スコア上位から）
 }});
