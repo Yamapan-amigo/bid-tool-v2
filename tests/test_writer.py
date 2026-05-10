@@ -19,8 +19,8 @@ class TestWriteProjects:
         projects = [
             BidProject(title="印刷業務", organization="東京都", source="官公需", score=4.0),
         ]
-        count = write_projects(projects)
-        assert count == 1
+        new = write_projects(projects)
+        assert len(new) == 1
         mock_ws.append_rows.assert_called_once()
 
     @patch("src.core.writer._get_spreadsheet")
@@ -36,14 +36,14 @@ class TestWriteProjects:
         projects = [
             BidProject(title="印刷業務", organization="東京都"),
         ]
-        count = write_projects(projects)
-        assert count == 0
+        new = write_projects(projects)
+        assert new == []
         mock_ws.append_rows.assert_not_called()
 
     def test_empty_projects(self) -> None:
-        """空リストは0を返す"""
-        count = write_projects([])
-        assert count == 0
+        """空リストは空リストを返す"""
+        new = write_projects([])
+        assert new == []
 
 
 class TestWriteLog:

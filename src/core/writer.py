@@ -85,14 +85,14 @@ def get_existing_project_keys() -> set[str]:
     return keys
 
 
-def write_projects(projects: list[BidProject]) -> int:
+def write_projects(projects: list[BidProject]) -> list[BidProject]:
     """案件を書き込む（重複チェック付き）
 
     Returns:
-        新規追加件数
+        新規追加されたBidProjectのリスト
     """
     if not projects:
-        return 0
+        return []
 
     ss = _get_spreadsheet()
     ws = _get_or_create_sheet(ss, SHEET_PROJECTS, PROJECT_HEADERS)
@@ -102,16 +102,18 @@ def write_projects(projects: list[BidProject]) -> int:
     today = datetime.now().strftime("%Y-%m-%d")
 
     new_rows: list[list[str]] = []
+    new_projects: list[BidProject] = []
     for p in projects:
         if p.dedup_key in existing_keys:
             continue
         new_rows.append(p.to_row(today))
+        new_projects.append(p)
 
     if new_rows:
         ws.append_rows(new_rows, value_input_option="RAW")
 
     logger.info("Spreadsheet書き込み: %d件の新規案件を追加", len(new_rows))
-    return len(new_rows)
+    return new_projects
 
 
 def write_log(source: str, status: str, count: int, error_msg: str = "") -> None:

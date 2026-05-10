@@ -123,8 +123,13 @@ def run(sources: list[str] | None = None) -> None:
     logger.info("×案件除外: %d件 → シート書き込み対象 %d件", ineligible_count, len(scored))
 
     # === 7. Spreadsheet書き込み ===
-    new_count = write_projects(scored)
-    logger.info("=== 完了: %d件の新規案件を追加 ===", new_count)
+    new_projects = write_projects(scored)
+    logger.info("=== 完了: %d件の新規案件を追加 ===", len(new_projects))
+
+    # === 8. LINE通知 ===
+    if new_projects:
+        from src.core.notifier import notify_new_projects
+        notify_new_projects(new_projects)
 
 
 def main() -> None:

@@ -39,7 +39,7 @@ class TestRun:
                 source="e-Tokyo",
             ),
         ]
-        mock_write.return_value = 2
+        mock_write.return_value = []
 
         run()
 
@@ -96,7 +96,7 @@ class TestRun:
             source="官公需",
         )
         mock_kkj.return_value = [same_project, same_project]
-        mock_write.return_value = 1
+        mock_write.return_value = []
 
         run(sources=["kkj"])
         written = mock_write.call_args[0][0]
