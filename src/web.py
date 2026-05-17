@@ -905,6 +905,31 @@ class Handler(SimpleHTTPRequestHandler):
         pass
 
 
+_NOTIFIED_IDS_PATH = ".github/state/notified_ids.json"
+
+
+def _load_notified_ids() -> set[str]:
+    import json
+    from pathlib import Path
+
+    path = Path(_NOTIFIED_IDS_PATH)
+    if not path.exists():
+        return set()
+    try:
+        return set(json.loads(path.read_text(encoding="utf-8")))
+    except Exception:
+        return set()
+
+
+def _save_notified_ids(ids: set[str]) -> None:
+    import json
+    from pathlib import Path
+
+    path = Path(_NOTIFIED_IDS_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(sorted(ids), ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def generate(output_path: str = "docs/index.html") -> str:
     """静的HTMLファイルを生成する（GitHub Pages用）"""
     logging.basicConfig(
@@ -925,6 +950,16 @@ def generate(output_path: str = "docs/index.html") -> str:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html_content, encoding="utf-8")
     logger.info("HTMLを出力: %s", output_path)
+
+    # LINE通知: 前回通知済み以外の案件を送信
+    notified = _load_notified_ids()
+    new_projects = [p for p in projects if p.dedup_key not in notified]
+    if new_projects:
+        from src.core.notifier import notify_new_projects
+        notify_new_projects(new_projects)
+    notified.update(p.dedup_key for p in projects)
+    _save_notified_ids(notified)
+
     return output_path
 
 

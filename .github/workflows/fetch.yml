@@ -6,9 +6,9 @@ on:
     - cron: '0 23 * * *'
   workflow_dispatch:
 
-# GitHub Pagesへのデプロイ権限
+# GitHub Pagesへのデプロイ権限 + 通知済みIDの状態ファイルをコミット
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -38,6 +38,14 @@ jobs:
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
         run: python -m src.web --generate docs/index.html
+
+      - name: Save notified IDs (新規案件の通知済み記録をコミット)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/state/notified_ids.json
+          git diff --cached --quiet || git commit -m "chore: update notified_ids [skip ci]"
+          git push
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
