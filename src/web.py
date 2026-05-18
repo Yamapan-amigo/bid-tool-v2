@@ -13,7 +13,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
-from src.config import CATEGORY_GROUPS
+from src.config import CATEGORY_GROUPS, MIN_SCORE_THRESHOLD
 from src.core.dedup import deduplicate
 from src.core.filter import apply_filters
 from src.core.matcher import match_past_results
@@ -106,6 +106,9 @@ def _collect_data() -> tuple[list[BidProject], int, int, int]:
 
     scored = score_projects(matched)
     scored.sort(key=lambda p: p.score, reverse=True)
+
+    # スコア閾値フィルタ（main.py と同じ基準で除外）
+    scored = [p for p in scored if p.score >= MIN_SCORE_THRESHOLD]
 
     return scored, len(all_projects), len(awards), matched_count
 
